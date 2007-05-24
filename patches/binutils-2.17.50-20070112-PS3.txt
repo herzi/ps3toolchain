@@ -1,0 +1,12 @@
+
+ 20070523 | Added binutils-soma.diff from the Barcelona site.
+ 20070523 | Added binutils-embed.diff from the Barcelona site.
+ 20070523 | Added binutils-spuerr.diff from the Barcelona site.
+ 20070523 | Added binutils-ppc64reloc.diff from the Barcelona site.
+ 20070523 | Added binutils-execstack.diff from the Barcelona site.
+ 20070523 | Added binutils-miscfixes.diff from the Barcelona site.
+ 20070523 | Added binutils-bin2c.diff from the Barcelona site.
+ 20070523 | Added binutils-spuovl.diff from the Barcelona site.
+ 20070523 | Added binutils-embedsym.diff from the Barcelona site.
+ 20070523 | Added binutils-cygbuild.diff from the Barcelona site.
+ 20070524 | Added a ppu target alias for powerpc64-unknown-linux-gnu.

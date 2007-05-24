@@ -1,0 +1,2535 @@
+diff -burN orig.binutils-2.17.50-20070112/bfd/elf32-spu.c binutils-2.17.50-20070112/bfd/elf32-spu.c
+--- orig.binutils-2.17.50-20070112/bfd/elf32-spu.c	2006-12-15 00:13:34.000000000 -0400
++++ binutils-2.17.50-20070112/bfd/elf32-spu.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* SPU specific support for 32-bit ELF
+ 
+-   Copyright 2006 Free Software Foundation, Inc.
++   Copyright 2006, 2007 Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -871,7 +871,7 @@
+ 
+ 		      (*_bfd_error_handler) (_("warning: call to non-function"
+ 					       " symbol %s defined in %B"),
+-					     sym_name, sym_sec->owner);
++					     sym_sec->owner, sym_name);
+ 		    }
+ 		  else
+ 		    continue;
+@@ -1069,7 +1069,7 @@
+   size_t max;
+ 
+   os = (struct _ovl_stream *) stream;
+-  max = (char *) os->end - (char *) os->start;
++  max = (const char *) os->end - (const char *) os->start;
+ 
+   if ((ufile_ptr) offset >= max)
+     return 0;
+@@ -1078,7 +1078,7 @@
+   if (count > max - offset)
+     count = max - offset;
+ 
+-  memcpy (buf, (char *) os->start + offset, count);
++  memcpy (buf, (const char *) os->start + offset, count);
+   return count;
+ }
+ 
+diff -burN orig.binutils-2.17.50-20070112/bfd/elf32-spu.h binutils-2.17.50-20070112/bfd/elf32-spu.h
+--- orig.binutils-2.17.50-20070112/bfd/elf32-spu.h	2006-10-25 03:49:20.000000000 -0300
++++ binutils-2.17.50-20070112/bfd/elf32-spu.h	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* SPU specific support for 32-bit ELF.
+ 
+-   Copyright 2006 Free Software Foundation, Inc.
++   Copyright 2006, 2007 Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -33,8 +33,8 @@
+ 
+ struct _ovl_stream
+ {
+-  void *start;
+-  void *end;
++  const void *start;
++  const void *end;
+ };
+ 
+ extern void spu_elf_plugin (int);
+diff -burN orig.binutils-2.17.50-20070112/bfd/elf64-ppc.c binutils-2.17.50-20070112/bfd/elf64-ppc.c
+--- orig.binutils-2.17.50-20070112/bfd/elf64-ppc.c	2006-12-23 05:57:38.000000000 -0400
++++ binutils-2.17.50-20070112/bfd/elf64-ppc.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1,5 +1,5 @@
+ /* PowerPC64-specific support for 64-bit ELF.
+-   Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006
++   Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
+    Free Software Foundation, Inc.
+    Written by Linus Nordberg, Swox AB <info@swox.com>,
+    based on elf32-ppc.c by Ian Lance Taylor.
+@@ -72,6 +72,7 @@
+ #define elf_backend_can_gc_sections 1
+ #define elf_backend_can_refcount 1
+ #define elf_backend_rela_normal 1
++#define elf_backend_default_execstack 0
+ 
+ #define bfd_elf64_mkobject		      ppc64_elf_mkobject
+ #define bfd_elf64_bfd_reloc_type_lookup	      ppc64_elf_reloc_type_lookup
+@@ -3769,45 +3770,22 @@
+     return FALSE;
+ 
+   /* Create branch lookup table for plt_branch stubs.  */
+-  if (info->shared)
+-    {
+       flags = (SEC_ALLOC | SEC_LOAD
+ 	       | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LINKER_CREATED);
+-      htab->brlt
+-	= bfd_make_section_anyway_with_flags (dynobj, ".data.rel.ro.brlt",
++  htab->brlt = bfd_make_section_anyway_with_flags (dynobj, ".branch_lt",
+ 					      flags);
+-    }
+-  else
+-    {
+-      flags = (SEC_ALLOC | SEC_LOAD | SEC_READONLY
+-	       | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LINKER_CREATED);
+-      htab->brlt
+-	= bfd_make_section_anyway_with_flags (dynobj, ".rodata.brlt", flags);
+-    }
+-
+   if (htab->brlt == NULL
+       || ! bfd_set_section_alignment (dynobj, htab->brlt, 3))
+     return FALSE;
+ 
+-  if (info->shared)
+-    {
+-      flags = (SEC_ALLOC | SEC_LOAD | SEC_READONLY
+-	       | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LINKER_CREATED);
+-      htab->relbrlt
+-	= bfd_make_section_anyway_with_flags (dynobj, ".rela.data.rel.ro.brlt",
+-					      flags);
+-    }
+-  else if (info->emitrelocations)
+-    {
++  if (!info->shared)
++    return TRUE;
++
+       flags = (SEC_ALLOC | SEC_LOAD | SEC_READONLY
+ 	       | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_LINKER_CREATED);
+-      htab->relbrlt
+-	= bfd_make_section_anyway_with_flags (dynobj, ".rela.rodata.brlt",
++  htab->relbrlt = bfd_make_section_anyway_with_flags (dynobj,
++						      ".rela.branch_lt",
+ 					      flags);
+-    }
+-  else
+-    return TRUE;
+-
+   if (!htab->relbrlt
+       || ! bfd_set_section_alignment (dynobj, htab->relbrlt, 3))
+     return FALSE;
+@@ -8345,6 +8323,33 @@
+ 	  rl += htab->relbrlt->reloc_count++ * sizeof (Elf64_External_Rela);
+ 	  bfd_elf64_swap_reloca_out (htab->relbrlt->owner, &rela, rl);
+ 	}
++      else if (info->emitrelocations)
++	{
++	  Elf_Internal_Rela *relocs, *r;
++	  struct bfd_elf_section_data *elfsec_data;
++
++	  elfsec_data = elf_section_data (htab->brlt);
++	  relocs = elfsec_data->relocs;
++	  if (relocs == NULL)
++	    {
++	      bfd_size_type relsize;
++	      relsize = htab->brlt->reloc_count * sizeof (*relocs);
++	      relocs = bfd_alloc (htab->brlt->owner, relsize);
++	      if (relocs == NULL)
++		return FALSE;
++	      elfsec_data->relocs = relocs;
++	      elfsec_data->rel_hdr.sh_size = relsize;
++	      elfsec_data->rel_hdr.sh_entsize = 24;
++	      htab->brlt->reloc_count = 0;
++	    }
++	  r = relocs + htab->brlt->reloc_count;
++	  htab->brlt->reloc_count += 1;
++	  r->r_offset = (br_entry->offset
++			 + htab->brlt->output_offset
++			 + htab->brlt->output_section->vma);
++	  r->r_info = ELF64_R_INFO (0, R_PPC64_RELATIVE);
++	  r->r_addend = off;
++	}
+ 
+       off = (br_entry->offset
+ 	     + htab->brlt->output_offset
+@@ -8574,6 +8579,11 @@
+ 
+ 	      if (htab->relbrlt != NULL)
+ 		htab->relbrlt->size += sizeof (Elf64_External_Rela);
++	      else if (info->emitrelocations)
++		{
++		  htab->brlt->reloc_count += 1;
++		  htab->brlt->flags |= SEC_RELOC;
++		}
+ 	    }
+ 
+ 	  stub_entry->stub_type += ppc_stub_plt_branch - ppc_stub_long_branch;
+@@ -8581,11 +8591,11 @@
+ 	  if (stub_entry->stub_type != ppc_stub_plt_branch)
+ 	    size = 28;
+ 	}
+-
+-      if (info->emitrelocations
+-	  && (stub_entry->stub_type == ppc_stub_long_branch
+-	      || stub_entry->stub_type == ppc_stub_long_branch_r2off))
++      else if (info->emitrelocations)
++	{
+ 	stub_entry->stub_sec->reloc_count += 1;
++	  stub_entry->stub_sec->flags |= SEC_RELOC;
++	}
+     }
+ 
+   stub_entry->stub_sec->size += size;
+@@ -9377,9 +9387,12 @@
+ 	    stub_sec->rawsize = stub_sec->size;
+ 	    stub_sec->size = 0;
+ 	    stub_sec->reloc_count = 0;
++	    stub_sec->flags &= ~SEC_RELOC;
+ 	  }
+ 
+       htab->brlt->size = 0;
++      htab->brlt->reloc_count = 0;
++      htab->brlt->flags &= ~SEC_RELOC;
+       if (htab->relbrlt != NULL)
+ 	htab->relbrlt->size = 0;
+ 
+@@ -11393,6 +11406,17 @@
+ 	= PLT_ENTRY_SIZE;
+     }
+ 
++  /* brlt is SEC_LINKER_CREATED, so we need to write out relocs for
++     brlt ourselves if emitrelocations.  */
++  if (htab->brlt != NULL
++      && htab->brlt->reloc_count != 0
++      && !_bfd_elf_link_output_relocs (output_bfd,
++				       htab->brlt,
++				       &elf_section_data (htab->brlt)->rel_hdr,
++				       elf_section_data (htab->brlt)->relocs,
++				       NULL))
++    return FALSE;
++
+   /* We need to handle writing out multiple GOT sections ourselves,
+      since we didn't add them to DYNOBJ.  We know dynobj is the first
+      bfd.  */
+diff -burN orig.binutils-2.17.50-20070112/bfd/elf-bfd.h binutils-2.17.50-20070112/bfd/elf-bfd.h
+--- orig.binutils-2.17.50-20070112/bfd/elf-bfd.h	2006-12-23 05:57:38.000000000 -0400
++++ binutils-2.17.50-20070112/bfd/elf-bfd.h	2007-05-24 00:24:16.000000000 -0300
+@@ -1102,10 +1102,17 @@
+   unsigned can_refcount : 1;
+   unsigned want_got_sym : 1;
+   unsigned want_dynbss : 1;
++
+     /* Targets which do not support physical addressing often require
+        that the p_paddr field in the section header to be set to zero.
+        This field indicates whether this behavior is required.  */
+   unsigned want_p_paddr_set_to_zero : 1;
++
++  /* True if an object file lacking a .note.GNU-stack section
++     should be assumed to be requesting exec stack.  At least one
++     other file in the link needs to have a .note.GNU-stack section
++     for a PT_GNU_STACK segment to be created.  */
++  unsigned default_execstack : 1;
+ };
+ 
+ /* Information stored for each BFD section in an ELF file.  This
+diff -burN orig.binutils-2.17.50-20070112/bfd/elf.c binutils-2.17.50-20070112/bfd/elf.c
+--- orig.binutils-2.17.50-20070112/bfd/elf.c	2007-01-11 08:23:53.000000000 -0400
++++ binutils-2.17.50-20070112/bfd/elf.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1592,28 +1592,13 @@
+   bfd_boolean ret;
+   int can_refcount = get_elf_backend_data (abfd)->can_refcount;
+ 
+-  table->dynamic_sections_created = FALSE;
+-  table->dynobj = NULL;
++  memset (table, 0, sizeof * table);
+   table->init_got_refcount.refcount = can_refcount - 1;
+   table->init_plt_refcount.refcount = can_refcount - 1;
+   table->init_got_offset.offset = -(bfd_vma) 1;
+   table->init_plt_offset.offset = -(bfd_vma) 1;
+   /* The first dynamic symbol is a dummy.  */
+   table->dynsymcount = 1;
+-  table->dynstr = NULL;
+-  table->bucketcount = 0;
+-  table->needed = NULL;
+-  table->hgot = NULL;
+-  table->hplt = NULL;
+-  table->merge_info = NULL;
+-  memset (&table->stab_info, 0, sizeof (table->stab_info));
+-  memset (&table->eh_info, 0, sizeof (table->eh_info));
+-  table->dynlocal = NULL;
+-  table->runpath = NULL;
+-  table->tls_sec = NULL;
+-  table->tls_size = 0;
+-  table->loaded = NULL;
+-  table->is_relocatable_executable = FALSE;
+ 
+   ret = _bfd_link_hash_table_init (&table->root, abfd, newfunc, entsize);
+   table->root.type = bfd_link_elf_hash_table;
+diff -burN orig.binutils-2.17.50-20070112/bfd/elflink.c binutils-2.17.50-20070112/bfd/elflink.c
+--- orig.binutils-2.17.50-20070112/bfd/elflink.c	2006-12-29 13:56:32.000000000 -0400
++++ binutils-2.17.50-20070112/bfd/elflink.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* ELF linking support for BFD.
+    Copyright 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
+-   2005, 2006 Free Software Foundation, Inc.
++   2005, 2006, 2007 Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -5221,6 +5221,7 @@
+   if (!is_elf_hash_table (info->hash))
+     return TRUE;
+ 
++  bed = get_elf_backend_data (output_bfd);
+   elf_tdata (output_bfd)->relro = info->relro;
+   if (info->execstack)
+     elf_tdata (output_bfd)->stack_flags = PF_R | PF_W | PF_X;
+@@ -5247,7 +5248,7 @@
+ 		exec = PF_X;
+ 	      notesec = s;
+ 	    }
+-	  else
++	  else if (bed->default_execstack)
+ 	    exec = PF_X;
+ 	}
+       if (notesec)
+@@ -5268,7 +5269,6 @@
+ 
+   /* The backend may have to create some sections regardless of whether
+      we're dynamic or not.  */
+-  bed = get_elf_backend_data (output_bfd);
+   if (bed->elf_backend_always_size_sections
+       && ! (*bed->elf_backend_always_size_sections) (output_bfd, info))
+     return FALSE;
+diff -burN orig.binutils-2.17.50-20070112/bfd/elfxx-target.h binutils-2.17.50-20070112/bfd/elfxx-target.h
+--- orig.binutils-2.17.50-20070112/bfd/elfxx-target.h	2006-12-23 05:57:38.000000000 -0400
++++ binutils-2.17.50-20070112/bfd/elfxx-target.h	2007-05-24 00:24:16.000000000 -0300
+@@ -103,6 +103,9 @@
+ #ifndef elf_backend_want_p_paddr_set_to_zero
+ #define elf_backend_want_p_paddr_set_to_zero 0
+ #endif
++#ifndef elf_backend_default_execstack
++#define elf_backend_default_execstack 1
++#endif
+ 
+ #define bfd_elfNN_bfd_debug_info_start	bfd_void
+ #define bfd_elfNN_bfd_debug_info_end	bfd_void
+@@ -680,7 +683,8 @@
+   elf_backend_can_refcount,
+   elf_backend_want_got_sym,
+   elf_backend_want_dynbss,
+-  elf_backend_want_p_paddr_set_to_zero
++  elf_backend_want_p_paddr_set_to_zero,
++  elf_backend_default_execstack
+ };
+ #endif
+ 
+diff -burN orig.binutils-2.17.50-20070112/binutils/bin2c.c binutils-2.17.50-20070112/binutils/bin2c.c
+--- orig.binutils-2.17.50-20070112/binutils/bin2c.c	1969-12-31 20:00:00.000000000 -0400
++++ binutils-2.17.50-20070112/binutils/bin2c.c	2007-05-24 00:24:16.000000000 -0300
+@@ -0,0 +1,104 @@
++/* bin2c.c -- dump binary file in hex format
++   Copyright 2007 Free Software Foundation, Inc.
++
++   This file is part of GNU Binutils.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 2 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program; if not, write to the Free Software
++   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA
++   02110-1301, USA.  */
++
++#include "bfd.h"
++#include "bucomm.h"
++
++#if !defined O_BINARY && defined _O_BINARY
++  /* For MSC-compatible compilers.  */
++# define O_BINARY _O_BINARY
++# define O_TEXT _O_TEXT
++#endif
++
++#ifdef __BEOS__
++  /* BeOS 5 has O_BINARY and O_TEXT, but they have no effect.  */
++# undef O_BINARY
++# undef O_TEXT
++#endif
++
++#if O_BINARY
++# ifndef __DJGPP__
++#  define setmode _setmode
++#  define fileno(_fp) _fileno (_fp)
++# endif /* not DJGPP */
++# define SET_BINARY(_f) \
++  do { if (!isatty (_f)) setmode (_f, O_BINARY); } while (0)
++#else
++# define SET_BINARY(f) (void) 0
++# define O_BINARY 0
++# define O_TEXT 0
++#endif /* O_BINARY */
++
++int
++main (int argc, char *argv[])
++{
++  int c;
++  int i;
++
++#if defined (HAVE_SETLOCALE) && defined (HAVE_LC_MESSAGES)
++  setlocale (LC_MESSAGES, "");
++#endif
++#if defined (HAVE_SETLOCALE)
++  setlocale (LC_CTYPE, "");
++#endif
++  bindtextdomain (PACKAGE, LOCALEDIR);
++  textdomain (PACKAGE);
++
++  if (argc != 1)
++    {
++      int ishelp = 0;
++      int isvers = 0;
++      FILE *stream;
++
++      if (argc == 2 && argv[1][0] == '-')
++	{
++	  const char *opt = &argv[1][1];
++	  if (*opt == '-')
++	    ++opt;
++	  ishelp = *opt == 'h' || *opt == 'H';
++	  isvers = *opt == 'v' || *opt == 'V';
++	}
++
++      if (isvers)
++	print_version ("bin2c");
++
++      stream = ishelp ? stdout : stderr;
++      fprintf (stream, _("Usage: %s < input_file > output_file\n"), argv[0]);
++      fprintf (stream, _("Prints bytes from stdin in hex format.\n"));
++      exit (!ishelp);
++    }
++
++  SET_BINARY (fileno (stdin));
++
++  i = 0;
++  while ((c = getc (stdin)) != EOF)
++    {
++      printf ("0x%02x,", c);
++      if (++i == 16)
++	{
++	  printf ("\n");
++	  i = 0;
++	}
++    }
++  if (i != 0)
++    printf ("\n");
++
++  exit (0);
++}
+diff -burN orig.binutils-2.17.50-20070112/binutils/bucomm.c binutils-2.17.50-20070112/binutils/bucomm.c
+--- orig.binutils-2.17.50-20070112/binutils/bucomm.c	2007-01-10 09:36:34.000000000 -0400
++++ binutils-2.17.50-20070112/binutils/bucomm.c	2007-05-24 00:24:16.000000000 -0300
+@@ -394,7 +394,7 @@
+ template_in_dir (const char *path)
+ {
+ #define template "stXXXXXX"
+-  char *slash = strrchr (path, '/');
++  const char *slash = strrchr (path, '/');
+   char *tmpname;
+   size_t len;
+ 
+@@ -406,7 +406,7 @@
+     if (slash == NULL || (bslash != NULL && bslash > slash))
+       slash = bslash;
+     if (slash == NULL && path[0] != '\0' && path[1] == ':')
+-      slash = filename + 1;
++      slash = path + 1;
+   }
+ #endif
+ 
+diff -burN orig.binutils-2.17.50-20070112/binutils/configure binutils-2.17.50-20070112/binutils/configure
+--- orig.binutils-2.17.50-20070112/binutils/configure	2007-01-11 02:24:40.000000000 -0400
++++ binutils-2.17.50-20070112/binutils/configure	2007-05-24 00:24:16.000000000 -0300
+@@ -309,7 +309,7 @@
+ # include <unistd.h>
+ #endif"
+ 
+-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE LN_S RANLIB ac_ct_RANLIB LIBTOOL WARN_CFLAGS NO_WERROR YACC LEX LEXLIB LEX_OUTPUT_ROOT USE_NLS LIBINTL LIBINTL_DEP INCINTL XGETTEXT GMSGFMT POSUB CATALOGS DATADIRNAME INSTOBJEXT GENCAT CATOBJEXT MKINSTALLDIRS MSGFMT MSGMERGE MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT GENINSRC_NEVER_TRUE GENINSRC_NEVER_FALSE HDEFINES AR CC_FOR_BUILD EXEEXT_FOR_BUILD DEMANGLER_NAME CPP EGREP ALLOCA NLMCONV_DEFS BUILD_NLMCONV BUILD_SRCONV BUILD_DLLTOOL DLLTOOL_DEFS BUILD_WINDRES BUILD_DLLWRAP BUILD_MISC OBJDUMP_DEFS EMULATION EMULATION_VECTOR datarootdir docdir htmldir LIBOBJS LTLIBOBJS'
++ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE LN_S RANLIB ac_ct_RANLIB LIBTOOL WARN_CFLAGS NO_WERROR YACC LEX LEXLIB LEX_OUTPUT_ROOT USE_NLS LIBINTL LIBINTL_DEP INCINTL XGETTEXT GMSGFMT POSUB CATALOGS DATADIRNAME INSTOBJEXT GENCAT CATOBJEXT MKINSTALLDIRS MSGFMT MSGMERGE MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT GENINSRC_NEVER_TRUE GENINSRC_NEVER_FALSE HDEFINES AR CC_FOR_BUILD EXEEXT_FOR_BUILD DEMANGLER_NAME CPP EGREP ALLOCA NLMCONV_DEFS BUILD_NLMCONV BUILD_SRCONV BUILD_DLLTOOL DLLTOOL_DEFS BUILD_WINDRES BUILD_DLLWRAP BUILD_MISC BUILD_INSTALL_MISC OBJDUMP_DEFS EMULATION EMULATION_VECTOR datarootdir docdir htmldir LIBOBJS LTLIBOBJS'
+ ac_subst_files=''
+ 
+ # Initialize some variables set by options.
+@@ -8601,6 +8601,7 @@
+ BUILD_WINDRES=
+ BUILD_DLLWRAP=
+ BUILD_MISC=
++BUILD_INSTALL_MISC=
+ OBJDUMP_DEFS=
+ 
+ for targ in $target $canon_targets
+@@ -8610,6 +8611,7 @@
+ 	BUILD_NLMCONV='$(NLMCONV_PROG)$(EXEEXT)'
+ 	BUILD_SRCONV='$(SRCONV_PROG)'
+ 	NLMCONV_DEFS="-DNLMCONV_I386 -DNLMCONV_ALPHA -DNLMCONV_POWERPC -DNLMCONV_SPARC"
++	BUILD_MISC="${BUILD_MISC} "'bin2c$(EXEEXT_FOR_BUILD)'
+     else
+ 	case $targ in
+ 	i[3-7]86*-*-netware*)
+@@ -8680,13 +8682,16 @@
+ 	  BUILD_WINDRES='$(WINDRES_PROG)$(EXEEXT)'
+ 	  ;;
+ 	powerpc*-*-linux* | powerpc*-*-elf*)
+-	  BUILD_MISC=embedspu
++	  BUILD_INSTALL_MISC="${BUILD_INSTALL_MISC} embedspu"
+ 	  ;;
+ 	sh*-*-pe)
+   	  BUILD_DLLTOOL='$(DLLTOOL_PROG)$(EXEEXT)'
+ 	  DLLTOOL_DEFS="$DLLTOOL_DEFS -DDLLTOOL_SH"
+ 	  BUILD_WINDRES='$(WINDRES_PROG)$(EXEEXT)'
+ 	  ;;
++	spu-*-*)
++	  BUILD_MISC="${BUILD_MISC} "'bin2c$(EXEEXT_FOR_BUILD)'
++	  ;;
+ 	mips*-*-pe)
+   	  BUILD_DLLTOOL='$(DLLTOOL_PROG)$(EXEEXT)'
+ 	  DLLTOOL_DEFS="$DLLTOOL_DEFS -DDLLTOOL_MIPS"
+@@ -8720,6 +8725,7 @@
+ 
+ 
+ 
++
+ cat >>confdefs.h <<_ACEOF
+ #define TARGET "${target}"
+ _ACEOF
+@@ -9521,6 +9527,7 @@
+ s,@BUILD_WINDRES@,$BUILD_WINDRES,;t t
+ s,@BUILD_DLLWRAP@,$BUILD_DLLWRAP,;t t
+ s,@BUILD_MISC@,$BUILD_MISC,;t t
++s,@BUILD_INSTALL_MISC@,$BUILD_INSTALL_MISC,;t t
+ s,@OBJDUMP_DEFS@,$OBJDUMP_DEFS,;t t
+ s,@EMULATION@,$EMULATION,;t t
+ s,@EMULATION_VECTOR@,$EMULATION_VECTOR,;t t
+diff -burN orig.binutils-2.17.50-20070112/binutils/configure.in binutils-2.17.50-20070112/binutils/configure.in
+--- orig.binutils-2.17.50-20070112/binutils/configure.in	2007-01-11 02:24:40.000000000 -0400
++++ binutils-2.17.50-20070112/binutils/configure.in	2007-05-24 00:24:16.000000000 -0300
+@@ -210,6 +210,7 @@
+ BUILD_WINDRES=
+ BUILD_DLLWRAP=
+ BUILD_MISC=
++BUILD_INSTALL_MISC=
+ OBJDUMP_DEFS=
+ 
+ for targ in $target $canon_targets
+@@ -219,6 +220,7 @@
+ 	BUILD_NLMCONV='$(NLMCONV_PROG)$(EXEEXT)'
+ 	BUILD_SRCONV='$(SRCONV_PROG)'
+ 	NLMCONV_DEFS="-DNLMCONV_I386 -DNLMCONV_ALPHA -DNLMCONV_POWERPC -DNLMCONV_SPARC"
++	BUILD_MISC="${BUILD_MISC} "'bin2c$(EXEEXT_FOR_BUILD)'
+     else
+ 	case $targ in
+ changequote(,)dnl
+@@ -297,13 +299,16 @@
+ 	  BUILD_WINDRES='$(WINDRES_PROG)$(EXEEXT)'
+ 	  ;;
+ 	powerpc*-*-linux* | powerpc*-*-elf*)
+-	  BUILD_MISC=embedspu
++	  BUILD_INSTALL_MISC="${BUILD_INSTALL_MISC} embedspu"
+ 	  ;;
+ 	sh*-*-pe)
+   	  BUILD_DLLTOOL='$(DLLTOOL_PROG)$(EXEEXT)'
+ 	  DLLTOOL_DEFS="$DLLTOOL_DEFS -DDLLTOOL_SH"
+ 	  BUILD_WINDRES='$(WINDRES_PROG)$(EXEEXT)'
+ 	  ;;
++	spu-*-*)
++	  BUILD_MISC="${BUILD_MISC} "'bin2c$(EXEEXT_FOR_BUILD)'
++	  ;;
+ 	mips*-*-pe)
+   	  BUILD_DLLTOOL='$(DLLTOOL_PROG)$(EXEEXT)'
+ 	  DLLTOOL_DEFS="$DLLTOOL_DEFS -DDLLTOOL_MIPS"
+@@ -334,6 +339,7 @@
+ AC_SUBST(BUILD_WINDRES)
+ AC_SUBST(BUILD_DLLWRAP)
+ AC_SUBST(BUILD_MISC)
++AC_SUBST(BUILD_INSTALL_MISC)
+ AC_SUBST(OBJDUMP_DEFS)
+ 
+ AC_DEFINE_UNQUOTED(TARGET, "${target}", [Configured target name.])
+diff -burN orig.binutils-2.17.50-20070112/binutils/embedspu.sh binutils-2.17.50-20070112/binutils/embedspu.sh
+--- orig.binutils-2.17.50-20070112/binutils/embedspu.sh	2007-01-11 02:24:40.000000000 -0400
++++ binutils-2.17.50-20070112/binutils/embedspu.sh	2007-05-24 00:24:16.000000000 -0300
+@@ -1,7 +1,7 @@
+ #! /bin/sh 
+ # Embed an SPU ELF executable into a PowerPC object file.
+ #
+-# Copyright 2006 Free Software Foundation, Inc.
++# Copyright 2006, 2007 Free Software Foundation, Inc.
+ #
+ # This file is part of GNU Binutils.
+ #
+@@ -138,7 +138,7 @@
+  .section .data.spetoe,"aw",@progbits
+  .p2align 7
+ __spetoe__:
+-`${READELF} -s ${INFILE} | grep ' _EAR_' | sort -k 2 | awk \
++`${READELF} -s -W ${INFILE} | grep ' _EAR_' | sort -k 2 | awk \
+ 'BEGIN { \
+   last_addr = 0; \
+   last_sym = ""; \
+@@ -166,6 +166,7 @@
+ 
+  .section .data,"aw",@progbits
+  .globl ${SYMBOL}
++ .type ${SYMBOL}, @object
+ # fill in a struct spe_program_handle
+ #ifdef _LP64
+  .p2align 3
+@@ -181,6 +182,7 @@
+  .int __speelf__
+  .int __spetoe__
+ #endif
++ .size ${SYMBOL}, . - ${SYMBOL}
+ EOF
+ }
+ 
+diff -burN orig.binutils-2.17.50-20070112/binutils/Makefile.am binutils-2.17.50-20070112/binutils/Makefile.am
+--- orig.binutils-2.17.50-20070112/binutils/Makefile.am	2007-01-11 02:24:40.000000000 -0400
++++ binutils-2.17.50-20070112/binutils/Makefile.am	2007-05-24 00:24:16.000000000 -0300
+@@ -50,13 +50,12 @@
+ 
+ SRCONV_PROG=srconv$(EXEEXT) sysdump$(EXEEXT) coffdump$(EXEEXT)
+ 
+-PROGS = $(SIZE_PROG) $(OBJDUMP_PROG) $(NM_PROG) $(AR_PROG) $(STRINGS_PROG) $(STRIP_PROG) $(RANLIB_PROG) $(DEMANGLER_PROG) $(OBJCOPY_PROG) @BUILD_NLMCONV@ @BUILD_SRCONV@ @BUILD_DLLTOOL@ @BUILD_WINDRES@ $(ADDR2LINE_PROG) $(READELF_PROG) @BUILD_DLLWRAP@ @BUILD_MISC@
+-
+-bin_PROGRAMS = $(SIZE_PROG) $(OBJDUMP_PROG) $(AR_PROG) $(STRINGS_PROG) $(RANLIB_PROG) $(OBJCOPY_PROG) @BUILD_NLMCONV@ @BUILD_SRCONV@ @BUILD_DLLTOOL@ @BUILD_WINDRES@ $(ADDR2LINE_PROG) $(READELF_PROG) @BUILD_DLLWRAP@ @BUILD_MISC@
++bin_PROGRAMS = $(SIZE_PROG) $(OBJDUMP_PROG) $(AR_PROG) $(STRINGS_PROG) $(RANLIB_PROG) $(OBJCOPY_PROG) @BUILD_NLMCONV@ @BUILD_SRCONV@ @BUILD_DLLTOOL@ @BUILD_WINDRES@ $(ADDR2LINE_PROG) $(READELF_PROG) @BUILD_DLLWRAP@ @BUILD_INSTALL_MISC@
+ 
+ ## We need a special rule to install the programs which are built with
+ ## -new, and to rename cxxfilt to c++filt.
+-noinst_PROGRAMS = $(NM_PROG) $(STRIP_PROG) $(DEMANGLER_PROG)
++RENAMED_PROGS = $(NM_PROG) $(STRIP_PROG) $(DEMANGLER_PROG)
++noinst_PROGRAMS = $(RENAMED_PROGS) @BUILD_MISC@
+ 
+ EXTRA_PROGRAMS = $(NLMCONV_PROG) srconv sysdump coffdump $(DLLTOOL_PROG) $(WINDRES_PROG) $(DLLWRAP_PROG)
+ 
+@@ -84,7 +83,7 @@
+ GENERATED_HFILES = arparse.h sysroff.h sysinfo.h defparse.h rcparse.h
+ 
+ CFILES = \
+-	addr2line.c ar.c arsup.c binemul.c bucomm.c budemang.c \
++	addr2line.c ar.c arsup.c bin2c.c binemul.c bucomm.c budemang.c \
+ 	coffdump.c coffgrok.c cxxfilt.c \
+ 	dwarf.c debug.c dlltool.c dllwrap.c \
+ 	emul_aix.c emul_vanilla.c filemode.c \
+@@ -277,6 +276,9 @@
+ 	  $(CC_FOR_BUILD) -c -I. $(AM_CFLAGS) $(CFLAGS) $(srcdir)/sysinfo.c -Wno-error ; \
+ 	fi
+ 
++bin2c$(EXEEXT_FOR_BUILD):
++	$(CC_FOR_BUILD) -o $@ $(INCLUDES) $(AM_CFLAGS) $(CFLAGS) $(LDFLAGS) $(srcdir)/bin2c.c $(srcdir)/version.c
++
+ embedspu: embedspu.sh
+ 	sed "s@^program_transform_name=@program_transform_name=$(program_transform_name)@" < $< > $@
+ 	chmod a+x $@
+@@ -344,8 +346,7 @@
+ diststuff: $(EXTRA_DIST) info
+ all: info
+ 
+-DISTCLEANFILES = sysinfo sysroff.c sysroff.h \
+-	site.exp site.bak
++DISTCLEANFILES = sysroff.c sysroff.h site.exp site.bak
+ 
+ # Targets to rebuild dependencies in this Makefile.
+ # Have to get rid of DEP1 here so that "$?" later includes all of $(CFILES).
+@@ -394,7 +395,8 @@
+ 
+ ###
+ 
+-MOSTLYCLEANFILES = sysinfo binutils.log binutils.sum abcdefgh*
++MOSTLYCLEANFILES = sysinfo$(EXEEXT_FOR_BUILD) bin2c$(EXEEXT_FOR_BUILD) \
++  binutils.log binutils.sum abcdefgh*
+ mostlyclean-local:
+ 	-rm -rf tmpdir
+ 
+@@ -403,10 +405,10 @@
+ .PHONY: install-exec-local
+ 
+ install-exec-local: install-binPROGRAMS $(bin_PROGRAMS) $(noinst_PROGRAMS)
+-	@list='$(noinst_PROGRAMS)'; for p in $$list; do \
+-	  if test -f $$p; then \
+-	    echo " $(LIBTOOL)  --mode=install $(INSTALL_PROGRAM) $$p $(bindir)/`echo $$p|sed -e 's/$(EXEEXT)$$//' -e 's/-new//' -e 's/cxxfilt/$(DEMANGLER_NAME)/'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`"; \
+-	    $(LIBTOOL)  --mode=install $(INSTALL_PROGRAM) $$p $(DESTDIR)$(bindir)/`echo $$p|sed -e 's/$(EXEEXT)$$//' -e 's/-new//' -e 's/cxxfilt/$(DEMANGLER_NAME)/'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`; \
++	@list='$(RENAMED_PROGS)'; for p in $$list; do \
++	  if test -f $$p$(EXEEXT); then \
++	    echo " $(LIBTOOL)  --mode=install $(INSTALL_PROGRAM) $$p$(EXEEXT) $(bindir)/`echo $$p|sed -e 's/-new//' -e 's/cxxfilt/$(DEMANGLER_NAME)/'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`"; \
++	    $(LIBTOOL)  --mode=install $(INSTALL_PROGRAM) $$p$(EXEEXT) $(DESTDIR)$(bindir)/`echo $$p|sed -e 's/-new//' -e 's/cxxfilt/$(DEMANGLER_NAME)/'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`; \
+ 	  else :; fi; \
+ 	done
+ 	$(mkinstalldirs) $(DESTDIR)$(tooldir)/bin
+@@ -441,6 +443,9 @@
+   $(INCDIR)/symcat.h arsup.h $(INCDIR)/libiberty.h $(INCDIR)/ansidecl.h \
+   bucomm.h $(INCDIR)/ansidecl.h config.h $(INCDIR)/bin-bugs.h \
+   $(INCDIR)/fopen-same.h $(INCDIR)/filenames.h
++bin2c.o: bin2c.c ../bfd/bfd.h $(INCDIR)/ansidecl.h \
++  $(INCDIR)/symcat.h bucomm.h $(INCDIR)/ansidecl.h config.h \
++  $(INCDIR)/fopen-same.h
+ binemul.o: binemul.c binemul.h ../bfd/bfd.h $(INCDIR)/ansidecl.h \
+   $(INCDIR)/symcat.h bucomm.h $(INCDIR)/ansidecl.h config.h \
+   $(INCDIR)/bin-bugs.h $(INCDIR)/fopen-same.h
+diff -burN orig.binutils-2.17.50-20070112/binutils/Makefile.in binutils-2.17.50-20070112/binutils/Makefile.in
+--- orig.binutils-2.17.50-20070112/binutils/Makefile.in	2007-01-11 02:24:40.000000000 -0400
++++ binutils-2.17.50-20070112/binutils/Makefile.in	2007-05-24 00:24:16.000000000 -0300
+@@ -40,8 +40,9 @@
+ bin_PROGRAMS = $(am__EXEEXT_5) $(am__EXEEXT_6) $(am__EXEEXT_7) \
+ 	$(am__EXEEXT_8) $(am__EXEEXT_9) $(am__EXEEXT_10) \
+ 	@BUILD_NLMCONV@ @BUILD_SRCONV@ @BUILD_DLLTOOL@ @BUILD_WINDRES@ \
+-	$(am__EXEEXT_11) $(am__EXEEXT_12) @BUILD_DLLWRAP@ @BUILD_MISC@
+-noinst_PROGRAMS = $(am__EXEEXT_13) $(am__EXEEXT_14) $(am__EXEEXT_15)
++	$(am__EXEEXT_11) $(am__EXEEXT_12) @BUILD_DLLWRAP@ \
++	@BUILD_INSTALL_MISC@ $(am__empty)
++noinst_PROGRAMS = $(am__EXEEXT_16) @BUILD_MISC@
+ EXTRA_PROGRAMS = $(am__EXEEXT_1) srconv$(EXEEXT) sysdump$(EXEEXT) \
+ 	coffdump$(EXEEXT) $(am__EXEEXT_2) $(am__EXEEXT_3) \
+ 	$(am__EXEEXT_4)
+@@ -88,6 +89,7 @@
+ am__EXEEXT_13 = nm-new$(EXEEXT)
+ am__EXEEXT_14 = strip-new$(EXEEXT)
+ am__EXEEXT_15 = cxxfilt$(EXEEXT)
++am__EXEEXT_16 = $(am__EXEEXT_13) $(am__EXEEXT_14) $(am__EXEEXT_15)
+ PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
+ am__objects_1 = bucomm.$(OBJEXT) version.$(OBJEXT) filemode.$(OBJEXT)
+ am_addr2line_OBJECTS = addr2line.$(OBJEXT) budemang.$(OBJEXT) \
+@@ -207,6 +209,7 @@
+ AWK = @AWK@
+ BUILD_DLLTOOL = @BUILD_DLLTOOL@
+ BUILD_DLLWRAP = @BUILD_DLLWRAP@
++BUILD_INSTALL_MISC = @BUILD_INSTALL_MISC@
+ BUILD_MISC = @BUILD_MISC@
+ BUILD_NLMCONV = @BUILD_NLMCONV@
+ BUILD_SRCONV = @BUILD_SRCONV@
+@@ -358,7 +361,7 @@
+ WINDRES_PROG = windres
+ DLLWRAP_PROG = dllwrap
+ SRCONV_PROG = srconv$(EXEEXT) sysdump$(EXEEXT) coffdump$(EXEEXT)
+-PROGS = $(SIZE_PROG) $(OBJDUMP_PROG) $(NM_PROG) $(AR_PROG) $(STRINGS_PROG) $(STRIP_PROG) $(RANLIB_PROG) $(DEMANGLER_PROG) $(OBJCOPY_PROG) @BUILD_NLMCONV@ @BUILD_SRCONV@ @BUILD_DLLTOOL@ @BUILD_WINDRES@ $(ADDR2LINE_PROG) $(READELF_PROG) @BUILD_DLLWRAP@ @BUILD_MISC@
++RENAMED_PROGS = $(NM_PROG) $(STRIP_PROG) $(DEMANGLER_PROG)
+ 
+ # Stuff that goes in tooldir/ if appropriate.
+ TOOL_PROGS = nm-new strip-new ar ranlib dlltool objdump
+@@ -380,7 +383,7 @@
+ 
+ GENERATED_HFILES = arparse.h sysroff.h sysinfo.h defparse.h rcparse.h
+ CFILES = \
+-	addr2line.c ar.c arsup.c binemul.c bucomm.c budemang.c \
++	addr2line.c ar.c arsup.c bin2c.c binemul.c bucomm.c budemang.c \
+ 	coffdump.c coffgrok.c cxxfilt.c \
+ 	dwarf.c debug.c dlltool.c dllwrap.c \
+ 	emul_aix.c emul_vanilla.c filemode.c \
+@@ -479,12 +482,12 @@
+ EXTRA_DIST = arparse.c arparse.h arlex.c nlmheader.c sysinfo.c sysinfo.h \
+ 	syslex.c deflex.c defparse.h defparse.c rclex.c rcparse.h rcparse.c
+ 
+-DISTCLEANFILES = sysinfo sysroff.c sysroff.h \
+-	site.exp site.bak
+-
++DISTCLEANFILES = sysroff.c sysroff.h site.exp site.bak
+ 
+ ###
+-MOSTLYCLEANFILES = sysinfo binutils.log binutils.sum abcdefgh*
++MOSTLYCLEANFILES = sysinfo$(EXEEXT_FOR_BUILD) bin2c$(EXEEXT_FOR_BUILD) \
++  binutils.log binutils.sum abcdefgh*
++
+ CLEANFILES = dep.sed DEP DEPA DEP1 DEP2
+ all: config.h
+ 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
+@@ -1030,6 +1033,9 @@
+ 	  $(CC_FOR_BUILD) -c -I. $(AM_CFLAGS) $(CFLAGS) $(srcdir)/sysinfo.c -Wno-error ; \
+ 	fi
+ 
++bin2c$(EXEEXT_FOR_BUILD):
++	$(CC_FOR_BUILD) -o $@ $(INCLUDES) $(AM_CFLAGS) $(CFLAGS) $(LDFLAGS) $(srcdir)/bin2c.c $(srcdir)/version.c
++
+ embedspu: embedspu.sh
+ 	sed "s@^program_transform_name=@program_transform_name=$(program_transform_name)@" < $< > $@
+ 	chmod a+x $@
+@@ -1073,7 +1079,7 @@
+ 	$(COMPILE) -c -DLD_NAME="\"$${ldname}\"" @NLMCONV_DEFS@ $(srcdir)/nlmconv.c
+ 
+ diststuff: $(EXTRA_DIST) info
+-all: info
++all: $(PROGS) info
+ 
+ # Targets to rebuild dependencies in this Makefile.
+ # Have to get rid of DEP1 here so that "$?" later includes all of $(CFILES).
+@@ -1125,10 +1131,10 @@
+ .PHONY: install-exec-local
+ 
+ install-exec-local: install-binPROGRAMS $(bin_PROGRAMS) $(noinst_PROGRAMS)
+-	@list='$(noinst_PROGRAMS)'; for p in $$list; do \
+-	  if test -f $$p; then \
+-	    echo " $(LIBTOOL)  --mode=install $(INSTALL_PROGRAM) $$p $(bindir)/`echo $$p|sed -e 's/$(EXEEXT)$$//' -e 's/-new//' -e 's/cxxfilt/$(DEMANGLER_NAME)/'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`"; \
+-	    $(LIBTOOL)  --mode=install $(INSTALL_PROGRAM) $$p $(DESTDIR)$(bindir)/`echo $$p|sed -e 's/$(EXEEXT)$$//' -e 's/-new//' -e 's/cxxfilt/$(DEMANGLER_NAME)/'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`; \
++	@list='$(RENAMED_PROGS)'; for p in $$list; do \
++	  if test -f $$p$(EXEEXT); then \
++	    echo " $(LIBTOOL)  --mode=install $(INSTALL_PROGRAM) $$p$(EXEEXT) $(bindir)/`echo $$p|sed -e 's/-new//' -e 's/cxxfilt/$(DEMANGLER_NAME)/'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`"; \
++	    $(LIBTOOL)  --mode=install $(INSTALL_PROGRAM) $$p$(EXEEXT) $(DESTDIR)$(bindir)/`echo $$p|sed -e 's/-new//' -e 's/cxxfilt/$(DEMANGLER_NAME)/'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`; \
+ 	  else :; fi; \
+ 	done
+ 	$(mkinstalldirs) $(DESTDIR)$(tooldir)/bin
+@@ -1163,6 +1169,9 @@
+   $(INCDIR)/symcat.h arsup.h $(INCDIR)/libiberty.h $(INCDIR)/ansidecl.h \
+   bucomm.h $(INCDIR)/ansidecl.h config.h $(INCDIR)/bin-bugs.h \
+   $(INCDIR)/fopen-same.h $(INCDIR)/filenames.h
++bin2c.o: bin2c.c ../bfd/bfd.h $(INCDIR)/ansidecl.h \
++  $(INCDIR)/symcat.h bucomm.h $(INCDIR)/ansidecl.h config.h \
++  $(INCDIR)/fopen-same.h
+ binemul.o: binemul.c binemul.h ../bfd/bfd.h $(INCDIR)/ansidecl.h \
+   $(INCDIR)/symcat.h bucomm.h $(INCDIR)/ansidecl.h config.h \
+   $(INCDIR)/bin-bugs.h $(INCDIR)/fopen-same.h
+diff -burN orig.binutils-2.17.50-20070112/binutils/po/POTFILES.in binutils-2.17.50-20070112/binutils/po/POTFILES.in
+--- orig.binutils-2.17.50-20070112/binutils/po/POTFILES.in	2005-10-24 23:20:16.000000000 -0300
++++ binutils-2.17.50-20070112/binutils/po/POTFILES.in	2007-05-24 00:24:16.000000000 -0300
+@@ -2,6 +2,7 @@
+ ar.c
+ arsup.c
+ arsup.h
++bin2c.c
+ binemul.c
+ binemul.h
+ bucomm.c
+diff -burN orig.binutils-2.17.50-20070112/binutils/version.c binutils-2.17.50-20070112/binutils/version.c
+--- orig.binutils-2.17.50-20070112/binutils/version.c	2005-05-08 11:17:39.000000000 -0300
++++ binutils-2.17.50-20070112/binutils/version.c	2007-05-24 00:24:16.000000000 -0300
+@@ -32,7 +32,7 @@
+   /* This output is intended to follow the GNU standards document.  */
+   /* xgettext:c-format */
+   printf ("GNU %s %s\n", name, BFD_VERSION_STRING);
+-  printf (_("Copyright 2005 Free Software Foundation, Inc.\n"));
++  printf (_("Copyright 2007 Free Software Foundation, Inc.\n"));
+   printf (_("\
+ This program is free software; you may redistribute it under the terms of\n\
+ the GNU General Public License.  This program has absolutely no warranty.\n"));
+diff -burN orig.binutils-2.17.50-20070112/config/mt-spu binutils-2.17.50-20070112/config/mt-spu
+--- orig.binutils-2.17.50-20070112/config/mt-spu	2006-12-11 02:47:57.000000000 -0400
++++ binutils-2.17.50-20070112/config/mt-spu	2007-05-24 00:24:16.000000000 -0300
+@@ -1,2 +1,4 @@
+-# spu ld makefile invokes as-new in maintainer mode.
+-all-ld: $(MAINT) all-gas
++# spu ld makefile invokes as-new
++all-ld: all-gas
++# spu ld makefile invokes bin2c
++all-ld: all-binutils
+diff -burN orig.binutils-2.17.50-20070112/config.sub binutils-2.17.50-20070112/config.sub
+--- orig.binutils-2.17.50-20070112/config.sub	2006-12-11 00:12:46.000000000 -0400
++++ binutils-2.17.50-20070112/config.sub	2007-05-24 00:29:38.000000000 -0300
+@@ -873,6 +873,10 @@
+ 	ppc64le-* | powerpc64little-*)
+ 		basic_machine=powerpc64le-`echo $basic_machine | sed 's/^[^-]*-//'`
+ 		;;
++	ppu)
++		basic_machine=powerpc64-unknown
++		os=-linux-gnu
++		;;
+ 	ps2)
+ 		basic_machine=i386-ibm
+ 		;;
+diff -burN orig.binutils-2.17.50-20070112/gas/config/obj-elf.c binutils-2.17.50-20070112/gas/config/obj-elf.c
+--- orig.binutils-2.17.50-20070112/gas/config/obj-elf.c	2006-11-21 23:35:36.000000000 -0400
++++ binutils-2.17.50-20070112/gas/config/obj-elf.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1983,6 +1983,7 @@
+       bfd_set_section_size (stdoutput, s, size);
+       s->contents = (unsigned char *) frag_more (size);
+       frag_now->fr_fix = frag_now_fix_octets ();
++      frag_wane (frag_now);
+     }
+ 
+ #ifdef elf_tc_final_processing
+diff -burN orig.binutils-2.17.50-20070112/gas/config/tc-spu.h binutils-2.17.50-20070112/gas/config/tc-spu.h
+--- orig.binutils-2.17.50-20070112/gas/config/tc-spu.h	2006-10-25 03:49:21.000000000 -0300
++++ binutils-2.17.50-20070112/gas/config/tc-spu.h	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* spu.h -- Assembler for spu
+ 
+-   Copyright 2006 Free Software Foundation, Inc.
++   Copyright 2006, 2007 Free Software Foundation, Inc.
+ 
+    This file is part of GAS, the GNU Assembler.
+ 
+@@ -54,18 +54,6 @@
+ /* Values passed to md_apply_fix don't include symbol values.  */
+ #define MD_APPLY_SYM_VALUE(FIX) 0
+ 
+-/* This expression evaluates to false if the relocation is for a local 
+-   object for which we still want to do the relocation at runtime.
+-   True if we are willing to perform this relocation while building
+-   the .o file.  This is only used for pcrel relocations.  */
+-
+-#define TC_RELOC_RTSYM_LOC_FIXUP(FIX)				\
+-  ((FIX)->fx_addsy == NULL					\
+-   || (! S_IS_EXTERNAL ((FIX)->fx_addsy)			\
+-       && ! S_IS_WEAK ((FIX)->fx_addsy)				\
+-       && S_IS_DEFINED ((FIX)->fx_addsy)			\
+-       && ! S_IS_COMMON ((FIX)->fx_addsy)))
+-
+ /* The spu uses pseudo-ops with no leading period.  */
+ #define NO_PSEUDO_DOT 1
+ 
+diff -burN orig.binutils-2.17.50-20070112/gas/input-file.c binutils-2.17.50-20070112/gas/input-file.c
+--- orig.binutils-2.17.50-20070112/gas/input-file.c	2006-09-13 07:15:59.000000000 -0300
++++ binutils-2.17.50-20070112/gas/input-file.c	2007-05-24 00:24:16.000000000 -0300
+@@ -163,8 +163,8 @@
+       c = getc (f_in);
+       if (c == 'N')
+ 	{
+-	  fgets (buf, 80, f_in);
+-	  if (!strncmp (buf, "O_APP", 5) && ISSPACE (buf[5]))
++	  if (fgets (buf, sizeof (buf), f_in)
++	      && !strncmp (buf, "O_APP", 5) && ISSPACE (buf[5]))
+ 	    preprocess = 0;
+ 	  if (!strchr (buf, '\n'))
+ 	    ungetc ('#', f_in);	/* It was longer.  */
+@@ -173,8 +173,8 @@
+ 	}
+       else if (c == 'A')
+ 	{
+-	  fgets (buf, 80, f_in);
+-	  if (!strncmp (buf, "PP", 2) && ISSPACE (buf[2]))
++	  if (fgets (buf, sizeof (buf), f_in)
++	      && !strncmp (buf, "PP", 2) && ISSPACE (buf[2]))
+ 	    preprocess = 1;
+ 	  if (!strchr (buf, '\n'))
+ 	    ungetc ('#', f_in);
+diff -burN orig.binutils-2.17.50-20070112/gas/write.c binutils-2.17.50-20070112/gas/write.c
+--- orig.binutils-2.17.50-20070112/gas/write.c	2006-10-25 21:17:49.000000000 -0300
++++ binutils-2.17.50-20070112/gas/write.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* write.c - emit .o file
+    Copyright 1986, 1987, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997,
+-   1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006
++   1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
+    Free Software Foundation, Inc.
+ 
+    This file is part of GAS, the GNU Assembler.
+@@ -27,6 +27,7 @@
+ #include "obstack.h"
+ #include "output-file.h"
+ #include "dwarf2dbg.h"
++#include "libbfd.h"
+ 
+ #ifndef TC_ADJUST_RELOC_COUNT
+ #define TC_ADJUST_RELOC_COUNT(FIX, COUNT)
+@@ -109,8 +110,6 @@
+ 
+ void print_fixup (fixS *);
+ 
+-static void renumber_sections (bfd *, asection *, PTR);
+-
+ /* We generally attach relocs to frag chains.  However, after we have
+    chained these all together into a segment, any relocs we add after
+    that must be attached to a segment.  This will include relocs added
+@@ -121,22 +120,6 @@
+ 
+ #define RELOC_ENUM enum bfd_reloc_code_real
+ 
+-static fixS *fix_new_internal (fragS *, int where, int size,
+-			       symbolS *add, symbolS *sub,
+-			       offsetT offset, int pcrel,
+-			       RELOC_ENUM r_type);
+-static long fixup_segment (fixS *, segT);
+-static relax_addressT relax_align (relax_addressT addr, int align);
+-static fragS *chain_frchains_together_1 (segT, struct frchain *);
+-static void chain_frchains_together (bfd *, segT, PTR);
+-static void cvt_frag_to_fill (segT, fragS *);
+-static void adjust_reloc_syms (bfd *, asection *, PTR);
+-static void fix_segment (bfd *, asection *, PTR);
+-static void write_relocs (bfd *, asection *, PTR);
+-static void write_contents (bfd *, asection *, PTR);
+-static void set_symtab (void);
+-static void merge_data_into_text (void);
+-
+ /* Create a fixS in obstack 'notes'.  */
+ 
+ static fixS *
+@@ -153,7 +136,7 @@
+ 
+   n_fixups++;
+ 
+-  fixP = (fixS *) obstack_alloc (&notes, sizeof (fixS));
++  fixP = obstack_alloc (&notes, sizeof (fixS));
+ 
+   fixP->fx_frag = frag;
+   fixP->fx_where = where;
+@@ -365,7 +348,7 @@
+ /* Reset the section indices after removing the gas created sections.  */
+ 
+ static void
+-renumber_sections (bfd *abfd ATTRIBUTE_UNUSED, asection *sec, PTR countparg)
++renumber_sections (bfd *abfd ATTRIBUTE_UNUSED, asection *sec, void *countparg)
+ {
+   int *countp = (int *) countparg;
+ 
+@@ -402,7 +385,7 @@
+ static void
+ chain_frchains_together (bfd *abfd ATTRIBUTE_UNUSED,
+ 			 segT section,
+-			 PTR xxx ATTRIBUTE_UNUSED)
++			 void *xxx ATTRIBUTE_UNUSED)
+ {
+   segment_info_type *info;
+ 
+@@ -530,10 +513,8 @@
+     info->changed = 1;
+ }
+ 
+-static void size_seg (bfd *, asection *, PTR);
+-
+ static void
+-size_seg (bfd *abfd, asection *sec, PTR xxx ATTRIBUTE_UNUSED)
++size_seg (bfd *abfd, asection *sec, void *xxx ATTRIBUTE_UNUSED)
+ {
+   flagword flags;
+   fragS *fragp;
+@@ -563,10 +544,6 @@
+   if (size > 0 && ! seginfo->bss)
+     flags |= SEC_HAS_CONTENTS;
+ 
+-  /* @@ This is just an approximation.  */
+-  if (seginfo && seginfo->fix_root)
+-    flags |= SEC_RELOC;
+-  else
+     flags &= ~SEC_RELOC;
+   x = bfd_set_section_flags (abfd, sec, flags);
+   assert (x);
+@@ -644,7 +621,7 @@
+ static void
+ adjust_reloc_syms (bfd *abfd ATTRIBUTE_UNUSED,
+ 		   asection *sec,
+-		   PTR xxx ATTRIBUTE_UNUSED)
++		   void *xxx ATTRIBUTE_UNUSED)
+ {
+   segment_info_type *seginfo = seg_info (sec);
+   fixS *fixp;
+@@ -681,17 +658,21 @@
+ 
+ 	/* If this symbol is equated to an undefined or common symbol,
+ 	   convert the fixup to being against that symbol.  */
+-	if (symbol_equated_reloc_p (sym)
++	while (symbol_equated_reloc_p (sym)
+ 	    || S_IS_WEAKREFR (sym))
+ 	  {
++	    symbolS *newsym = symbol_get_value_expression (sym)->X_add_symbol;
++	    if (sym == newsym)
++	      break;
+ 	    fixp->fx_offset += symbol_get_value_expression (sym)->X_add_number;
+-	    sym = symbol_get_value_expression (sym)->X_add_symbol;
+-	    fixp->fx_addsy = sym;
++	    fixp->fx_addsy = newsym;
++	    sym = newsym;
+ 	  }
+ 
+ 	if (symbol_mri_common_p (sym))
+ 	  {
+-	    /* These symbols are handled specially in fixup_segment.  */
++	    fixp->fx_offset += S_GET_VALUE (sym);
++	    fixp->fx_addsy = symbol_get_value_expression (sym)->X_add_symbol;
+ 	    continue;
+ 	  }
+ 
+@@ -764,180 +745,329 @@
+   dump_section_relocs (abfd, sec, stderr);
+ }
+ 
+-static void
+-fix_segment (bfd *abfd ATTRIBUTE_UNUSED,
+-	     asection *sec,
+-	     PTR xxx ATTRIBUTE_UNUSED)
+-{
+-  segment_info_type *seginfo = seg_info (sec);
++/* fixup_segment()
+ 
+-  fixup_segment (seginfo->fix_root, sec);
+-}
++   Go through all the fixS's in a segment and see which ones can be
++   handled now.  (These consist of fixS where we have since discovered
++   the value of a symbol, or the address of the frag involved.)
++   For each one, call md_apply_fix to put the fix into the frag data.
+ 
+-static void
+-write_relocs (bfd *abfd, asection *sec, PTR xxx ATTRIBUTE_UNUSED)
+-{
+-  segment_info_type *seginfo = seg_info (sec);
+-  unsigned int i;
+-  unsigned int n;
+-  arelent **relocs;
+-  fixS *fixp;
+-  char *err;
++   Result is a count of how many relocation structs will be needed to
++   handle the remaining fixS's that we couldn't completely handle here.
++   These will be output later by emit_relocations().  */
+ 
+-  /* If seginfo is NULL, we did not create this section; don't do
+-     anything with it.  */
+-  if (seginfo == NULL)
+-    return;
++static long
++fixup_segment (fixS *fixP, segT this_segment)
++{
++  long seg_reloc_count = 0;
++  valueT add_number;
++  fragS *fragP;
++  segT add_symbol_segment = absolute_section;
+ 
+-  n = 0;
+-  for (fixp = seginfo->fix_root; fixp; fixp = fixp->fx_next)
+-    n++;
++  if (fixP != NULL && abs_section_sym == NULL)
++    abs_section_sym = section_symbol (absolute_section);
+ 
+-#ifndef RELOC_EXPANSION_POSSIBLE
+-  /* Set up reloc information as well.  */
+-  relocs = (arelent **) xcalloc (n, sizeof (arelent *));
++  /* If the linker is doing the relaxing, we must not do any fixups.
+ 
+-  i = 0;
+-  for (fixp = seginfo->fix_root; fixp != (fixS *) NULL; fixp = fixp->fx_next)
++     Well, strictly speaking that's not true -- we could do any that
++     are PC-relative and don't cross regions that could change size.
++     And for the i960 we might be able to turn callx/callj into bal
++     anyways in cases where we know the maximum displacement.  */
++  if (linkrelax && TC_LINKRELAX_FIXUP (this_segment))
+     {
+-      arelent *reloc;
+-      bfd_reloc_status_type s;
+-      symbolS *sym;
+-
+-      if (fixp->fx_done)
++      for (; fixP; fixP = fixP->fx_next)
++	if (!fixP->fx_done)
+ 	{
+-	  n--;
+-	  continue;
++	    if (fixP->fx_addsy == NULL)
++	      {
++		/* There was no symbol required by this relocation.
++		   However, BFD doesn't really handle relocations
++		   without symbols well. So fake up a local symbol in
++		   the absolute section.  */
++		fixP->fx_addsy = abs_section_sym;
++	      }
++	    symbol_mark_used_in_reloc (fixP->fx_addsy);
++	    if (fixP->fx_subsy != NULL)
++	      symbol_mark_used_in_reloc (fixP->fx_subsy);
++	    seg_reloc_count++;
++	  }
++      TC_ADJUST_RELOC_COUNT (fixP, seg_reloc_count);
++      return seg_reloc_count;
+ 	}
+ 
+-      /* If this is an undefined symbol which was equated to another
+-         symbol, then generate the reloc against the latter symbol
+-         rather than the former.  */
+-      sym = fixp->fx_addsy;
+-      while (symbol_equated_reloc_p (sym))
++  for (; fixP; fixP = fixP->fx_next)
+ 	{
+-	  symbolS *n;
++#ifdef DEBUG5
++      fprintf (stderr, "\nprocessing fixup:\n");
++      print_fixup (fixP);
++#endif
+ 
+-	  /* We must avoid looping, as that can occur with a badly
+-	     written program.  */
+-	  n = symbol_get_value_expression (sym)->X_add_symbol;
+-	  if (n == sym)
+-	    break;
+-	  fixp->fx_offset += symbol_get_value_expression (sym)->X_add_number;
+-	  sym = n;
+-	}
+-      fixp->fx_addsy = sym;
++      fragP = fixP->fx_frag;
++      know (fragP);
++#ifdef TC_VALIDATE_FIX
++      TC_VALIDATE_FIX (fixP, this_segment, skip);
++#endif
++      add_number = fixP->fx_offset;
+ 
+-      reloc = tc_gen_reloc (sec, fixp);
+-      if (!reloc)
++      if (fixP->fx_addsy != NULL)
++	add_symbol_segment = S_GET_SEGMENT (fixP->fx_addsy);
++
++      if (fixP->fx_subsy != NULL)
+ 	{
+-	  n--;
+-	  continue;
++	  segT sub_symbol_segment;
++	  resolve_symbol_value (fixP->fx_subsy);
++	  sub_symbol_segment = S_GET_SEGMENT (fixP->fx_subsy);
++	  if (fixP->fx_addsy != NULL
++	      && sub_symbol_segment == add_symbol_segment
++	      && !TC_FORCE_RELOCATION_SUB_SAME (fixP, add_symbol_segment))
++	    {
++	      add_number += S_GET_VALUE (fixP->fx_addsy);
++	      add_number -= S_GET_VALUE (fixP->fx_subsy);
++	      fixP->fx_offset = add_number;
++	      fixP->fx_addsy = NULL;
++	      fixP->fx_subsy = NULL;
++#ifdef TC_M68K
++	      /* See the comment below about 68k weirdness.  */
++	      fixP->fx_pcrel = 0;
++#endif
+ 	}
++	  else if (sub_symbol_segment == absolute_section
++		   && !TC_FORCE_RELOCATION_SUB_ABS (fixP))
++	    {
++	      add_number -= S_GET_VALUE (fixP->fx_subsy);
++	      fixP->fx_offset = add_number;
++	      fixP->fx_subsy = NULL;
++	    }
++	  else if (sub_symbol_segment == this_segment
++		   && !TC_FORCE_RELOCATION_SUB_LOCAL (fixP))
++	    {
++	      add_number -= S_GET_VALUE (fixP->fx_subsy);
++	      fixP->fx_offset = (add_number + fixP->fx_dot_value
++				 + fixP->fx_frag->fr_address);
+ 
+-      /*
+-	This test is triggered inappropriately for the SH:
+-         if (fixp->fx_where + fixp->fx_size
+-	     > fixp->fx_frag->fr_fix + fixp->fx_frag->fr_offset)
+-	     abort ();
+-      */
+-
+-      s = bfd_install_relocation (stdoutput, reloc,
+-				  fixp->fx_frag->fr_literal,
+-				  fixp->fx_frag->fr_address,
+-				  sec, &err);
+-      switch (s)
++	      /* Make it pc-relative.  If the back-end code has not
++		 selected a pc-relative reloc, cancel the adjustment
++		 we do later on all pc-relative relocs.  */
++	      if (0
++#ifdef TC_M68K
++		  /* Do this for m68k even if it's already described
++		     as pc-relative.  On the m68k, an operand of
++		     "pc@(foo-.-2)" should address "foo" in a
++		     pc-relative mode.  */
++		  || 1
++#endif
++		  || !fixP->fx_pcrel)
++		add_number += MD_PCREL_FROM_SECTION (fixP, this_segment);
++	      fixP->fx_subsy = NULL;
++	      fixP->fx_pcrel = 1;
++	    }
++	  else if (!TC_VALIDATE_FIX_SUB (fixP))
+ 	{
+-	case bfd_reloc_ok:
+-	  break;
+-	case bfd_reloc_overflow:
+-	  as_bad_where (fixp->fx_file, fixp->fx_line,
+-			_("relocation overflow"));
+-	  break;
+-	case bfd_reloc_outofrange:
+-	  as_bad_where (fixp->fx_file, fixp->fx_line,
+-			_("relocation out of range"));
+-	  break;
+-	default:
+-	  as_fatal (_("%s:%u: bad return from bfd_install_relocation: %x"),
+-		    fixp->fx_file, fixp->fx_line, s);
++	      as_bad_where (fixP->fx_file, fixP->fx_line,
++			    _("can't resolve `%s' {%s section} - `%s' {%s section}"),
++			    fixP->fx_addsy ? S_GET_NAME (fixP->fx_addsy) : "0",
++			    segment_name (add_symbol_segment),
++			    S_GET_NAME (fixP->fx_subsy),
++			    segment_name (sub_symbol_segment));
+ 	}
+-      relocs[i++] = reloc;
+     }
+-#else
+-  n = n * MAX_RELOC_EXPANSION;
+-  /* Set up reloc information as well.  */
+-  relocs = (arelent **) xcalloc (n, sizeof (arelent *));
+ 
+-  i = 0;
+-  for (fixp = seginfo->fix_root; fixp != (fixS *) NULL; fixp = fixp->fx_next)
++      if (fixP->fx_addsy)
+     {
+-      arelent **reloc;
+-      bfd_reloc_status_type s;
+-      symbolS *sym;
+-      int j;
+-
+-      if (fixp->fx_done)
++	  if (add_symbol_segment == this_segment
++	      && !TC_FORCE_RELOCATION_LOCAL (fixP))
+ 	{
+-	  n--;
+-	  continue;
++	      /* This fixup was made when the symbol's segment was
++		 SEG_UNKNOWN, but it is now in the local segment.
++		 So we know how to do the address without relocation.  */
++	      add_number += S_GET_VALUE (fixP->fx_addsy);
++	      fixP->fx_offset = add_number;
++	      if (fixP->fx_pcrel)
++		add_number -= MD_PCREL_FROM_SECTION (fixP, this_segment);
++	      fixP->fx_addsy = NULL;
++	      fixP->fx_pcrel = 0;
+ 	}
+-
+-      /* If this is an undefined symbol which was equated to another
+-         symbol, then generate the reloc against the latter symbol
+-         rather than the former.  */
+-      sym = fixp->fx_addsy;
+-      while (symbol_equated_reloc_p (sym))
++	  else if (add_symbol_segment == absolute_section
++		   && !TC_FORCE_RELOCATION_ABS (fixP))
+ 	{
+-	  symbolS *n;
++	      add_number += S_GET_VALUE (fixP->fx_addsy);
++	      fixP->fx_offset = add_number;
++	      fixP->fx_addsy = NULL;
++	    }
++	  else if (add_symbol_segment != undefined_section
++		   && ! bfd_is_com_section (add_symbol_segment)
++		   && MD_APPLY_SYM_VALUE (fixP))
++	    add_number += S_GET_VALUE (fixP->fx_addsy);
++	}
+ 
+-	  /* We must avoid looping, as that can occur with a badly
+-	     written program.  */
+-	  n = symbol_get_value_expression (sym)->X_add_symbol;
+-	  if (n == sym)
+-	    break;
+-	  fixp->fx_offset += symbol_get_value_expression (sym)->X_add_number;
+-	  sym = n;
++      if (fixP->fx_pcrel)
++	{
++	  add_number -= MD_PCREL_FROM_SECTION (fixP, this_segment);
++	  if (!fixP->fx_done && fixP->fx_addsy == NULL)
++	    {
++	      /* There was no symbol required by this relocation.
++		 However, BFD doesn't really handle relocations
++		 without symbols well. So fake up a local symbol in
++		 the absolute section.  */
++	      fixP->fx_addsy = abs_section_sym;
++	    }
+ 	}
+-      fixp->fx_addsy = sym;
+ 
+-      reloc = tc_gen_reloc (sec, fixp);
++      if (!fixP->fx_done)
++	md_apply_fix (fixP, &add_number, this_segment);
+ 
+-      for (j = 0; reloc[j]; j++)
++      if (!fixP->fx_done)
+ 	{
+-	  relocs[i++] = reloc[j];
+-	  assert (i <= n);
++	  ++seg_reloc_count;
++	  if (fixP->fx_addsy == NULL)
++	    fixP->fx_addsy = abs_section_sym;
++	  symbol_mark_used_in_reloc (fixP->fx_addsy);
++	  if (fixP->fx_subsy != NULL)
++	    symbol_mark_used_in_reloc (fixP->fx_subsy);
+ 	}
+-      if (fixp->fx_where + fixp->fx_size
+-	  > fixp->fx_frag->fr_fix + fixp->fx_frag->fr_offset)
+-	as_bad_where (fixp->fx_file, fixp->fx_line,
+-		      _("internal error: fixup not contained within frag"));
+-      for (j = 0; reloc[j]; j++)
++
++      if (!fixP->fx_bit_fixP && !fixP->fx_no_overflow && fixP->fx_size != 0)
++	{
++	  if (fixP->fx_size < sizeof (valueT))
++	    {
++	      valueT mask;
++
++	      mask = 0;
++	      mask--;		/* Set all bits to one.  */
++	      mask <<= fixP->fx_size * 8 - (fixP->fx_signed ? 1 : 0);
++	      if ((add_number & mask) != 0 && (add_number & mask) != mask)
+ 	{
+-	  s = bfd_install_relocation (stdoutput, reloc[j],
+-				      fixp->fx_frag->fr_literal,
+-				      fixp->fx_frag->fr_address,
++		  char buf[50], buf2[50];
++		  sprint_value (buf, fragP->fr_address + fixP->fx_where);
++		  if (add_number > 1000)
++		    sprint_value (buf2, add_number);
++		  else
++		    sprintf (buf2, "%ld", (long) add_number);
++		  as_bad_where (fixP->fx_file, fixP->fx_line,
++				_("value of %s too large for field of %d bytes at %s"),
++				buf2, fixP->fx_size, buf);
++		} /* Generic error checking.  */
++	    }
++#ifdef WARN_SIGNED_OVERFLOW_WORD
++	  /* Warn if a .word value is too large when treated as a signed
++	     number.  We already know it is not too negative.  This is to
++	     catch over-large switches generated by gcc on the 68k.  */
++	  if (!flag_signed_overflow_ok
++	      && fixP->fx_size == 2
++	      && add_number > 0x7fff)
++	    as_bad_where (fixP->fx_file, fixP->fx_line,
++			  _("signed .word overflow; switch may be too large; %ld at 0x%lx"),
++			  (long) add_number,
++			  (long) (fragP->fr_address + fixP->fx_where));
++#endif
++	}			/* Not a bit fix.  */
++
++#ifdef TC_VALIDATE_FIX
++    skip:  ATTRIBUTE_UNUSED_LABEL
++      ;
++#endif
++#ifdef DEBUG5
++      fprintf (stderr, "result:\n");
++      print_fixup (fixP);
++#endif
++    }				/* For each fixS in this segment.  */
++
++  TC_ADJUST_RELOC_COUNT (fixP, seg_reloc_count);
++  return seg_reloc_count;
++}
++
++static void
++fix_segment (bfd *abfd ATTRIBUTE_UNUSED,
++	     asection *sec,
++	     void *xxx ATTRIBUTE_UNUSED)
++{
++  segment_info_type *seginfo = seg_info (sec);
++
++  fixup_segment (seginfo->fix_root, sec);
++}
++
++static void
++install_reloc (asection *sec, arelent *reloc, fragS *fragp,
++	       char *file, unsigned int line)
++{
++  char *err;
++  bfd_reloc_status_type s;
++
++  s = bfd_install_relocation (stdoutput, reloc,
++			      fragp->fr_literal, fragp->fr_address,
+ 				      sec, &err);
+ 	  switch (s)
+ 	    {
+ 	    case bfd_reloc_ok:
+ 	      break;
+ 	    case bfd_reloc_overflow:
+-	      as_bad_where (fixp->fx_file, fixp->fx_line,
+-			    _("relocation overflow"));
++      as_bad_where (file, line, _("relocation overflow"));
+ 	      break;
+ 	    case bfd_reloc_outofrange:
+-	      as_bad_where (fixp->fx_file, fixp->fx_line,
+-			    _("relocation out of range"));
++      as_bad_where (file, line, _("relocation out of range"));
+ 	      break;
+ 	    default:
+ 	      as_fatal (_("%s:%u: bad return from bfd_install_relocation: %x"),
+-			fixp->fx_file, fixp->fx_line, s);
++		file, line, s);
++    }
++}
++
++static void
++write_relocs (bfd *abfd, asection *sec, void *xxx ATTRIBUTE_UNUSED)
++{
++  segment_info_type *seginfo = seg_info (sec);
++  unsigned int i;
++  unsigned int n;
++  arelent **relocs;
++  fixS *fixp;
++
++  /* If seginfo is NULL, we did not create this section; don't do
++     anything with it.  */
++  if (seginfo == NULL)
++    return;
++
++  n = 0;
++  for (fixp = seginfo->fix_root; fixp; fixp = fixp->fx_next)
++    if (!fixp->fx_done)
++      n++;
++
++#ifdef RELOC_EXPANSION_POSSIBLE
++  n *= MAX_RELOC_EXPANSION;
++#endif
++
++  relocs = xcalloc (n, sizeof (arelent *));
++
++  i = 0;
++  for (fixp = seginfo->fix_root; fixp != (fixS *) NULL; fixp = fixp->fx_next)
++    {
++      int j;
++
++      if (fixp->fx_done)
++	continue;
++
++#ifndef RELOC_EXPANSION_POSSIBLE
++      {
++	arelent *reloc = tc_gen_reloc (sec, fixp);
++
++	if (!reloc)
++	  continue;
++	relocs[i++] = reloc;
++	j = 1;
+ 	    }
++#else
++      {
++	arelent **reloc = tc_gen_reloc (sec, fixp);
++
++	for (j = 0; reloc[j]; j++)
++	  relocs[i++] = reloc[j];
+ 	}
++#endif
++
++      for ( ; j != 0; --j)
++	install_reloc (sec, relocs[i - j], fixp->fx_frag,
++		       fixp->fx_file, fixp->fx_line);
+     }
+   n = i;
+-#endif
+ 
+ #ifdef DEBUG4
+   {
+@@ -958,11 +1088,12 @@
+ #endif
+ 
+   if (n)
++    {
++      flagword flags = bfd_get_section_flags (abfd, sec);
++      flags |= SEC_RELOC;
++      bfd_set_section_flags (abfd, sec, flags);
+     bfd_set_reloc (stdoutput, sec, relocs, n);
+-  else
+-    bfd_set_section_flags (abfd, sec,
+-			   (bfd_get_section_flags (abfd, sec)
+-			    & (flagword) ~SEC_RELOC));
++    }
+ 
+ #ifdef SET_SECTION_RELOCS
+   SET_SECTION_RELOCS (sec, relocs, n);
+@@ -988,7 +1119,7 @@
+ static void
+ write_contents (bfd *abfd ATTRIBUTE_UNUSED,
+ 		asection *sec,
+-		PTR xxx ATTRIBUTE_UNUSED)
++		void *xxx ATTRIBUTE_UNUSED)
+ {
+   segment_info_type *seginfo = seg_info (sec);
+   addressT offset = 0;
+@@ -1091,7 +1222,6 @@
+   asymbol **asympp;
+   symbolS *symp;
+   bfd_boolean result;
+-  extern PTR bfd_alloc (bfd *, bfd_size_type);
+ 
+   /* Count symbols.  We can't rely on a count made by the loop in
+      write_object_file, because *_frob_file may add a new symbol or
+@@ -1105,7 +1235,7 @@
+       int i;
+       bfd_size_type amt = (bfd_size_type) nsyms * sizeof (asymbol *);
+ 
+-      asympp = (asymbol **) bfd_alloc (stdoutput, amt);
++      asympp = bfd_alloc (stdoutput, amt);
+       symp = symbol_rootP;
+       for (i = 0; i < nsyms; i++, symp = symbol_next (symp))
+ 	{
+@@ -2098,246 +2228,6 @@
+   return ret;
+ }
+ 
+-/* fixup_segment()
+-
+-   Go through all the fixS's in a segment and see which ones can be
+-   handled now.  (These consist of fixS where we have since discovered
+-   the value of a symbol, or the address of the frag involved.)
+-   For each one, call md_apply_fix to put the fix into the frag data.
+-
+-   Result is a count of how many relocation structs will be needed to
+-   handle the remaining fixS's that we couldn't completely handle here.
+-   These will be output later by emit_relocations().  */
+-
+-static long
+-fixup_segment (fixS *fixP, segT this_segment)
+-{
+-  long seg_reloc_count = 0;
+-  valueT add_number;
+-  fragS *fragP;
+-  segT add_symbol_segment = absolute_section;
+-
+-  if (fixP != NULL && abs_section_sym == NULL)
+-    abs_section_sym = section_symbol (absolute_section);
+-
+-  /* If the linker is doing the relaxing, we must not do any fixups.
+-
+-     Well, strictly speaking that's not true -- we could do any that
+-     are PC-relative and don't cross regions that could change size.
+-     And for the i960 we might be able to turn callx/callj into bal
+-     anyways in cases where we know the maximum displacement.  */
+-  if (linkrelax && TC_LINKRELAX_FIXUP (this_segment))
+-    {
+-      for (; fixP; fixP = fixP->fx_next)
+-	if (!fixP->fx_done)
+-	  {
+-	    if (fixP->fx_addsy == NULL)
+-	      {
+-		/* There was no symbol required by this relocation.
+-		   However, BFD doesn't really handle relocations
+-		   without symbols well. So fake up a local symbol in
+-		   the absolute section.  */
+-		fixP->fx_addsy = abs_section_sym;
+-	      }
+-	    symbol_mark_used_in_reloc (fixP->fx_addsy);
+-	    if (fixP->fx_subsy != NULL)
+-	      symbol_mark_used_in_reloc (fixP->fx_subsy);
+-	    seg_reloc_count++;
+-	  }
+-      TC_ADJUST_RELOC_COUNT (fixP, seg_reloc_count);
+-      return seg_reloc_count;
+-    }
+-
+-  for (; fixP; fixP = fixP->fx_next)
+-    {
+-#ifdef DEBUG5
+-      fprintf (stderr, "\nprocessing fixup:\n");
+-      print_fixup (fixP);
+-#endif
+-
+-      fragP = fixP->fx_frag;
+-      know (fragP);
+-#ifdef TC_VALIDATE_FIX
+-      TC_VALIDATE_FIX (fixP, this_segment, skip);
+-#endif
+-      add_number = fixP->fx_offset;
+-
+-      if (fixP->fx_addsy != NULL
+-	  && symbol_mri_common_p (fixP->fx_addsy))
+-	{
+-	  add_number += S_GET_VALUE (fixP->fx_addsy);
+-	  fixP->fx_offset = add_number;
+-	  fixP->fx_addsy
+-	    = symbol_get_value_expression (fixP->fx_addsy)->X_add_symbol;
+-	}
+-
+-      if (fixP->fx_addsy != NULL)
+-	add_symbol_segment = S_GET_SEGMENT (fixP->fx_addsy);
+-
+-      if (fixP->fx_subsy != NULL)
+-	{
+-	  segT sub_symbol_segment;
+-	  resolve_symbol_value (fixP->fx_subsy);
+-	  sub_symbol_segment = S_GET_SEGMENT (fixP->fx_subsy);
+-	  if (fixP->fx_addsy != NULL
+-	      && sub_symbol_segment == add_symbol_segment
+-	      && !TC_FORCE_RELOCATION_SUB_SAME (fixP, add_symbol_segment))
+-	    {
+-	      add_number += S_GET_VALUE (fixP->fx_addsy);
+-	      add_number -= S_GET_VALUE (fixP->fx_subsy);
+-	      fixP->fx_offset = add_number;
+-	      fixP->fx_addsy = NULL;
+-	      fixP->fx_subsy = NULL;
+-#ifdef TC_M68K
+-	      /* See the comment below about 68k weirdness.  */
+-	      fixP->fx_pcrel = 0;
+-#endif
+-	    }
+-	  else if (sub_symbol_segment == absolute_section
+-		   && !TC_FORCE_RELOCATION_SUB_ABS (fixP))
+-	    {
+-	      add_number -= S_GET_VALUE (fixP->fx_subsy);
+-	      fixP->fx_offset = add_number;
+-	      fixP->fx_subsy = NULL;
+-	    }
+-	  else if (sub_symbol_segment == this_segment
+-		   && !TC_FORCE_RELOCATION_SUB_LOCAL (fixP))
+-	    {
+-	      add_number -= S_GET_VALUE (fixP->fx_subsy);
+-	      fixP->fx_offset = (add_number + fixP->fx_dot_value
+-				 + fixP->fx_frag->fr_address);
+-
+-	      /* Make it pc-relative.  If the back-end code has not
+-		 selected a pc-relative reloc, cancel the adjustment
+-		 we do later on all pc-relative relocs.  */
+-	      if (0
+-#ifdef TC_M68K
+-		  /* Do this for m68k even if it's already described
+-		     as pc-relative.  On the m68k, an operand of
+-		     "pc@(foo-.-2)" should address "foo" in a
+-		     pc-relative mode.  */
+-		  || 1
+-#endif
+-		  || !fixP->fx_pcrel)
+-		add_number += MD_PCREL_FROM_SECTION (fixP, this_segment);
+-	      fixP->fx_subsy = NULL;
+-	      fixP->fx_pcrel = 1;
+-	    }
+-	  else if (!TC_VALIDATE_FIX_SUB (fixP))
+-	    {
+-	      as_bad_where (fixP->fx_file, fixP->fx_line,
+-			    _("can't resolve `%s' {%s section} - `%s' {%s section}"),
+-			    fixP->fx_addsy ? S_GET_NAME (fixP->fx_addsy) : "0",
+-			    segment_name (add_symbol_segment),
+-			    S_GET_NAME (fixP->fx_subsy),
+-			    segment_name (sub_symbol_segment));
+-	    }
+-	}
+-
+-      if (fixP->fx_addsy)
+-	{
+-	  if (add_symbol_segment == this_segment
+-	      && !TC_FORCE_RELOCATION_LOCAL (fixP))
+-	    {
+-	      /* This fixup was made when the symbol's segment was
+-		 SEG_UNKNOWN, but it is now in the local segment.
+-		 So we know how to do the address without relocation.  */
+-	      add_number += S_GET_VALUE (fixP->fx_addsy);
+-	      fixP->fx_offset = add_number;
+-	      if (fixP->fx_pcrel)
+-		add_number -= MD_PCREL_FROM_SECTION (fixP, this_segment);
+-	      fixP->fx_addsy = NULL;
+-	      fixP->fx_pcrel = 0;
+-	    }
+-	  else if (add_symbol_segment == absolute_section
+-		   && !TC_FORCE_RELOCATION_ABS (fixP))
+-	    {
+-	      add_number += S_GET_VALUE (fixP->fx_addsy);
+-	      fixP->fx_offset = add_number;
+-	      fixP->fx_addsy = NULL;
+-	    }
+-	  else if (add_symbol_segment != undefined_section
+-		   && ! bfd_is_com_section (add_symbol_segment)
+-		   && MD_APPLY_SYM_VALUE (fixP))
+-	    add_number += S_GET_VALUE (fixP->fx_addsy);
+-	}
+-
+-      if (fixP->fx_pcrel)
+-	{
+-	  add_number -= MD_PCREL_FROM_SECTION (fixP, this_segment);
+-	  if (!fixP->fx_done && fixP->fx_addsy == NULL)
+-	    {
+-	      /* There was no symbol required by this relocation.
+-		 However, BFD doesn't really handle relocations
+-		 without symbols well. So fake up a local symbol in
+-		 the absolute section.  */
+-	      fixP->fx_addsy = abs_section_sym;
+-	    }
+-	}
+-
+-      if (!fixP->fx_done)
+-	md_apply_fix (fixP, &add_number, this_segment);
+-
+-      if (!fixP->fx_done)
+-	{
+-	  ++seg_reloc_count;
+-	  if (fixP->fx_addsy == NULL)
+-	    fixP->fx_addsy = abs_section_sym;
+-	  symbol_mark_used_in_reloc (fixP->fx_addsy);
+-	  if (fixP->fx_subsy != NULL)
+-	    symbol_mark_used_in_reloc (fixP->fx_subsy);
+-	}
+-
+-      if (!fixP->fx_bit_fixP && !fixP->fx_no_overflow && fixP->fx_size != 0)
+-	{
+-	  if (fixP->fx_size < sizeof (valueT))
+-	    {
+-	      valueT mask;
+-
+-	      mask = 0;
+-	      mask--;		/* Set all bits to one.  */
+-	      mask <<= fixP->fx_size * 8 - (fixP->fx_signed ? 1 : 0);
+-	      if ((add_number & mask) != 0 && (add_number & mask) != mask)
+-		{
+-		  char buf[50], buf2[50];
+-		  sprint_value (buf, fragP->fr_address + fixP->fx_where);
+-		  if (add_number > 1000)
+-		    sprint_value (buf2, add_number);
+-		  else
+-		    sprintf (buf2, "%ld", (long) add_number);
+-		  as_bad_where (fixP->fx_file, fixP->fx_line,
+-				_("value of %s too large for field of %d bytes at %s"),
+-				buf2, fixP->fx_size, buf);
+-		} /* Generic error checking.  */
+-	    }
+-#ifdef WARN_SIGNED_OVERFLOW_WORD
+-	  /* Warn if a .word value is too large when treated as a signed
+-	     number.  We already know it is not too negative.  This is to
+-	     catch over-large switches generated by gcc on the 68k.  */
+-	  if (!flag_signed_overflow_ok
+-	      && fixP->fx_size == 2
+-	      && add_number > 0x7fff)
+-	    as_bad_where (fixP->fx_file, fixP->fx_line,
+-			  _("signed .word overflow; switch may be too large; %ld at 0x%lx"),
+-			  (long) add_number,
+-			  (long) (fragP->fr_address + fixP->fx_where));
+-#endif
+-	}			/* Not a bit fix.  */
+-
+-#ifdef TC_VALIDATE_FIX
+-    skip:  ATTRIBUTE_UNUSED_LABEL
+-      ;
+-#endif
+-#ifdef DEBUG5
+-      fprintf (stderr, "result:\n");
+-      print_fixup (fixP);
+-#endif
+-    }				/* For each fixS in this segment.  */
+-
+-  TC_ADJUST_RELOC_COUNT (fixP, seg_reloc_count);
+-  return seg_reloc_count;
+-}
+-
+ void
+ number_to_chars_bigendian (char *buf, valueT val, int n)
+ {
+diff -burN orig.binutils-2.17.50-20070112/include/opcode/spu-insns.h binutils-2.17.50-20070112/include/opcode/spu-insns.h
+--- orig.binutils-2.17.50-20070112/include/opcode/spu-insns.h	2006-10-25 03:49:18.000000000 -0300
++++ binutils-2.17.50-20070112/include/opcode/spu-insns.h	2007-05-24 00:24:16.000000000 -0300
+@@ -403,6 +403,13 @@
+ APUOPFB(M_BIFD,		RR,	0x128,	0x20,	"bifd",		_A2(A_T,A_A),	00011,	BR)	/* BIZ           IP<-RA_if(RT) */
+ APUOPFB(M_BIFE,		RR,	0x128,	0x10,	"bife",		_A2(A_T,A_A),	00011,	BR)	/* BIZ           IP<-RA_if(RT) */
+ 
++/* New soma double-float insns.  */
++APUOP(M_DFCEQ,		RR,	0x3c3,	"dfceq",	_A3(A_T,A_A,A_B),	00112,	FX2)	/* DFCEQ         RT<-(RA=RB) */
++APUOP(M_DFCMEQ,		RR,	0x3cb,	"dfcmeq",	_A3(A_T,A_A,A_B),	00112,	FX2)	/* DFCMEQ        RT<-(|RA|=|RB|) */
++APUOP(M_DFCGT,		RR,	0x2c3,	"dfcgt",	_A3(A_T,A_A,A_B),	00112,	FX2)	/* DFCGT         RT<-(RA>RB) */
++APUOP(M_DFCMGT,		RR,	0x2cb,	"dfcmgt",	_A3(A_T,A_A,A_B),	00112,	FX2)	/* DFCMGT        RT<-(|RA|>|RB|) */
++APUOP(M_DFTSV,		RI7,	0x3bf,	"dftsv",	_A3(A_T,A_A,A_U7),	00012,	FX2)	/* DFTSV         RT<-testspecial(RA,I7) */
++
+ #undef _A0
+ #undef _A1
+ #undef _A2
+diff -burN orig.binutils-2.17.50-20070112/ld/configure.tgt binutils-2.17.50-20070112/ld/configure.tgt
+--- orig.binutils-2.17.50-20070112/ld/configure.tgt	2007-01-08 13:21:50.000000000 -0400
++++ binutils-2.17.50-20070112/ld/configure.tgt	2007-05-24 00:24:16.000000000 -0300
+@@ -567,8 +567,7 @@
+ sparc*-wrs-vxworks*)	targ_emul=sparcaout ;;
+ sparc*-*-rtems*)        targ_emul=elf32_sparc
+ 			;;
+-spu-*-elf*)		targ_emul=elf32_spu
+-			targ_extra_ofiles="spu_inc.o" ;;
++spu-*-elf*)		targ_emul=elf32_spu ;;
+ tic30-*-*aout*)		targ_emul=tic30aout ;;
+ tic30-*-*coff*)		targ_emul=tic30coff ;;
+ tic4x-*-* | c4x-*-*)    targ_emul=tic4xcoff ; targ_extra_emuls="tic3xcoff tic3xcoff_onchip" ;;
+diff -burN orig.binutils-2.17.50-20070112/ld/emulparams/elf64ppc.sh binutils-2.17.50-20070112/ld/emulparams/elf64ppc.sh
+--- orig.binutils-2.17.50-20070112/ld/emulparams/elf64ppc.sh	2006-05-30 13:45:32.000000000 -0300
++++ binutils-2.17.50-20070112/ld/emulparams/elf64ppc.sh	2007-05-24 00:24:16.000000000 -0300
+@@ -31,7 +31,8 @@
+   .rela.toc	${RELOCATING-0} : { *(.rela.toc) }"
+ OTHER_READWRITE_SECTIONS="
+   .toc1		${RELOCATING-0} :${RELOCATING+ ALIGN(8)} { *(.toc1) }
+-  .opd		${RELOCATING-0} :${RELOCATING+ ALIGN(8)} { KEEP (*(.opd)) }"
++  .opd		${RELOCATING-0} :${RELOCATING+ ALIGN(8)} { KEEP (*(.opd)) }
++  .branch_lt	${RELOCATING-0} :${RELOCATING+ ALIGN(8)} { *(.branch_lt) }"
+ 
+ # Treat a host that matches the target with the possible exception of "64"
+ # in the name as if it were native.
+diff -burN orig.binutils-2.17.50-20070112/ld/emultempl/ppc64elf.em binutils-2.17.50-20070112/ld/emultempl/ppc64elf.em
+--- orig.binutils-2.17.50-20070112/ld/emultempl/ppc64elf.em	2006-06-19 23:22:14.000000000 -0300
++++ binutils-2.17.50-20070112/ld/emultempl/ppc64elf.em	2007-05-24 00:24:16.000000000 -0300
+@@ -225,7 +225,7 @@
+     goto err_ret;
+ 
+   flags = (SEC_ALLOC | SEC_LOAD | SEC_READONLY | SEC_CODE
+-	   | SEC_HAS_CONTENTS | SEC_RELOC | SEC_IN_MEMORY | SEC_KEEP);
++	   | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP);
+   if (!bfd_set_section_flags (stub_file->the_bfd, stub_sec, flags))
+     goto err_ret;
+ 
+diff -burN orig.binutils-2.17.50-20070112/ld/emultempl/spuelf.em binutils-2.17.50-20070112/ld/emultempl/spuelf.em
+--- orig.binutils-2.17.50-20070112/ld/emultempl/spuelf.em	2006-10-25 03:49:21.000000000 -0300
++++ binutils-2.17.50-20070112/ld/emultempl/spuelf.em	2007-05-24 00:24:16.000000000 -0300
+@@ -1,5 +1,5 @@
+ # This shell script emits a C file. -*- C -*-
+-#   Copyright 2006 Free Software Foundation, Inc.
++#   Copyright 2006, 2007 Free Software Foundation, Inc.
+ #
+ # This file is part of GLD, the Gnu Linker.
+ #
+@@ -38,12 +38,17 @@
+ static bfd_vma local_store_lo = 0;
+ static bfd_vma local_store_hi = 0x3ffff;
+ 
+-extern void *_binary_builtin_ovl_mgr_start;
+-extern void *_binary_builtin_ovl_mgr_end;
++static const char ovl_mgr[] = {
++EOF
++
++../binutils/bin2c < ${srcdir}/emultempl/spu_ovl.o >> e${EMULATION_NAME}.c
++
++cat >>e${EMULATION_NAME}.c <<EOF
++};
+ 
+ static const struct _ovl_stream ovl_mgr_stream = {
+-  &_binary_builtin_ovl_mgr_start,
+-  &_binary_builtin_ovl_mgr_end
++  ovl_mgr,
++  ovl_mgr + sizeof (ovl_mgr)
+ };
+ 
+ static asection *toe = NULL;
+@@ -118,6 +123,8 @@
+     {
+       /* User supplied __ovly_load.  */
+     }
++  else if (ovl_mgr_stream.start == ovl_mgr_stream.end)
++    einfo ("%F%P: no built-in overlay manager\n");
+   else
+     {
+       lang_input_statement_type *ovl_is;
+diff -burN orig.binutils-2.17.50-20070112/ld/emultempl/spu_inc.s binutils-2.17.50-20070112/ld/emultempl/spu_inc.s
+--- orig.binutils-2.17.50-20070112/ld/emultempl/spu_inc.s	2006-10-25 03:49:21.000000000 -0300
++++ binutils-2.17.50-20070112/ld/emultempl/spu_inc.s	1969-12-31 20:00:00.000000000 -0400
+@@ -1,7 +0,0 @@
+- .text
+- .globl _binary_builtin_ovl_mgr_start
+- .globl _binary_builtin_ovl_mgr_end
+-
+-_binary_builtin_ovl_mgr_start:
+- .incbin "spu_ovl.o"
+-_binary_builtin_ovl_mgr_end:
+diff -burN orig.binutils-2.17.50-20070112/ld/emultempl/spu_ovl.S binutils-2.17.50-20070112/ld/emultempl/spu_ovl.S
+--- orig.binutils-2.17.50-20070112/ld/emultempl/spu_ovl.S	2006-10-25 03:49:21.000000000 -0300
++++ binutils-2.17.50-20070112/ld/emultempl/spu_ovl.S	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* Overlay manager for SPU.
+ 
+-   Copyright 2006 Free Software Foundation, Inc.
++   Copyright 2006, 2007 Free Software Foundation, Inc.
+ 
+    This file is part of GLD, the Gnu Linker.
+ 
+@@ -62,7 +62,7 @@
+ #define vma		$6
+ 
+ #define map		$7
+-#define size		$7
++#define osize		$7
+ #define cmp2		$7
+ 
+ #define ea64		$8
+@@ -101,6 +101,7 @@
+ 	shlqbyi		$78, $lr, 4
+ 	shlqbyi		$79, $lr, 8
+ 	biz		$78, $79
++	.size		__ovly_return, . - __ovly_return
+ 
+ /**
+  * __ovly_load - copy an overlay partion to local store.
+@@ -194,6 +195,13 @@
+ 	ceq		cmp, $78, cur
+ 	brnz		cmp, __ovly_load_restore
+ 
++/* Marker for profiling code.  If we get here, we are about to load
++ * a new overlay.
++ */
++	.global		__ovly_load_event
++	.type		__ovly_load_event, @function
++__ovly_load_event:
++
+ /* Set _ovly_buf_table[buf].mapped = $78. */
+ 	cwx		genwi, tab, off
+ 	shufb		map, $78, map, genwi
+@@ -204,7 +212,7 @@
+  * loader, and indicating the value for SPU executable image start.
+  */
+ 	lqd		cgshuf, (__cg_pattern-__ovly_return+4)(retval)
+-	rotqbyi		size, vma, 4
++	rotqbyi		osize, vma, 4
+ 	rotqbyi		sz, vma, 8
+ 	lqa		ea64, _EAR_
+ 
+@@ -219,8 +227,8 @@
+ /* Setup DMA parameters, then issue DMA request. */
+ 	rotqbyi		ealo, add64, 4
+ 	ila		maxsize, MFC_MAX_DMA_SIZE
+-	cgt		cmp, size, maxsize
+-	selb		sz, size, maxsize, cmp
++	cgt		cmp, osize, maxsize
++	selb		sz, osize, maxsize, cmp
+ 	ila		tagid, MFC_TAG_ID
+ 	wrch		$MFC_LSA, vma
+ 	wrch		$MFC_EAH, ea64
+@@ -232,8 +240,8 @@
+ 
+ /* Increment vma, decrement size, branch back as needed. */
+ 	a		vma, vma, sz
+-	sf		size, sz, size
+-	brnz		size, __ovly_xfer_loop
++	sf		osize, sz, osize
++	brnz		osize, __ovly_xfer_loop
+ 
+ /* Save app's tagmask, wait for DMA complete, restore mask. */
+ 	rdch		oldmask, $MFC_RdTagMask
+@@ -273,3 +281,5 @@
+ __ovly_load_ret:
+ /* Branch to target address. */
+ 	bi		$79
++
++	.size		__ovly_load, . - __ovly_load
+diff -burN orig.binutils-2.17.50-20070112/ld/ldcref.c binutils-2.17.50-20070112/ld/ldcref.c
+--- orig.binutils-2.17.50-20070112/ld/ldcref.c	2006-07-18 22:50:23.000000000 -0300
++++ binutils-2.17.50-20070112/ld/ldcref.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* ldcref.c -- output a cross reference table
+-   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2006
+-   Free Software Foundation, Inc.
++   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2006,
++   2007 Free Software Foundation, Inc.
+    Written by Ian Lance Taylor <ian@cygnus.com>
+ 
+ This file is part of GLD, the Gnu Linker.
+@@ -710,11 +710,11 @@
+ 						   | BSF_WEAK)) != 0))
+ 	      || (!global
+ 		  && ((*q->sym_ptr_ptr)->flags & (BSF_LOCAL
+-						  | BSF_SECTION_SYM)) != 0))
++						  | BSF_SECTION_SYM)) != 0
++		  && bfd_get_section (*q->sym_ptr_ptr) == info->defsec))
+ 	  && (symname != NULL
+ 	      ? strcmp (bfd_asymbol_name (*q->sym_ptr_ptr), symname) == 0
+-	      : (((*q->sym_ptr_ptr)->flags & BSF_SECTION_SYM) != 0
+-		 && bfd_get_section (*q->sym_ptr_ptr) == info->defsec)))
++	      : ((*q->sym_ptr_ptr)->flags & BSF_SECTION_SYM) != 0))
+ 	{
+ 	  /* We found a reloc for the symbol.  The symbol is defined
+ 	     in OUTSECNAME.  This reloc is from a section which is
+diff -burN orig.binutils-2.17.50-20070112/ld/ldexp.c binutils-2.17.50-20070112/ld/ldexp.c
+--- orig.binutils-2.17.50-20070112/ld/ldexp.c	2007-01-06 18:03:45.000000000 -0400
++++ binutils-2.17.50-20070112/ld/ldexp.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* This module handles expression trees.
+    Copyright 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
+-   2001, 2002, 2003, 2004, 2005, 2006
++   2001, 2002, 2003, 2004, 2005, 2006, 2007
+    Free Software Foundation, Inc.
+    Written by Steve Chamberlain of Cygnus Support <sac@cygnus.com>.
+ 
+@@ -485,6 +485,7 @@
+ 	  new_abs (hdr_size);
+ 	}
+       break;
++
+     case DEFINED:
+       if (expld.phase == lang_first_phase_enum)
+ 	lang_track_definedness (tree->name.name);
+@@ -507,6 +508,7 @@
+ 	  expld.result.valid_p = TRUE;
+ 	}
+       break;
++
+     case NAME:
+       if (expld.phase == lang_first_phase_enum)
+ 	;
+@@ -591,7 +593,10 @@
+ 	      if (os->load_base == NULL)
+ 		new_abs (os->bfd_section->lma);
+ 	      else
++		{
+ 		exp_fold_tree_1 (os->load_base);
++		  make_abs ();
++		}
+ 	    }
+ 	}
+       break;
+diff -burN orig.binutils-2.17.50-20070112/ld/ldgram.y binutils-2.17.50-20070112/ld/ldgram.y
+--- orig.binutils-2.17.50-20070112/ld/ldgram.y	2006-09-07 14:16:34.000000000 -0300
++++ binutils-2.17.50-20070112/ld/ldgram.y	2007-05-24 00:24:16.000000000 -0300
+@@ -131,12 +131,11 @@
+ %token '{' '}'
+ %token SIZEOF_HEADERS OUTPUT_FORMAT FORCE_COMMON_ALLOCATION OUTPUT_ARCH
+ %token INHIBIT_COMMON_ALLOCATION
+-%token SIZEOF_HEADERS
+ %token SEGMENT_START
+ %token INCLUDE
+-%token MEMORY DEFSYMEND
++%token MEMORY
+ %token NOLOAD DSECT COPY INFO OVERLAY
+-%token NAME LNAME DEFINED TARGET_K SEARCH_DIR MAP ENTRY
++%token DEFINED TARGET_K SEARCH_DIR MAP ENTRY
+ %token <integer> NEXT
+ %token SIZEOF ADDR LOADADDR MAX_K MIN_K
+ %token STARTUP HLL SYSLIB FLOAT NOFLOAT NOCROSSREFS
+diff -burN orig.binutils-2.17.50-20070112/ld/ldlang.c binutils-2.17.50-20070112/ld/ldlang.c
+--- orig.binutils-2.17.50-20070112/ld/ldlang.c	2006-12-12 04:10:40.000000000 -0400
++++ binutils-2.17.50-20070112/ld/ldlang.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* Linker command language support.
+    Copyright 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
+-   2001, 2002, 2003, 2004, 2005, 2006
++   2001, 2002, 2003, 2004, 2005, 2006, 2007
+    Free Software Foundation, Inc.
+ 
+    This file is part of GLD, the Gnu Linker.
+@@ -4413,7 +4413,8 @@
+ 		   an explicit assignment to the section LMA (ie.
+ 		   os->load_base set) because backwards moves normally
+ 		   create overlapping LMAs.  */
+-		if (dot < last->vma)
++		if (dot < last->vma
++		    && os->bfd_section->size != 0)
+ 		  {
+ 		    einfo (_("%P: warning: dot moved backwards before `%s'\n"),
+ 			   os->name);
+@@ -4463,8 +4464,11 @@
+ 		 || (os->bfd_section->flags & SEC_THREAD_LOCAL) == 0)
+ 		&& (os->bfd_section->flags & SEC_ALLOC) != 0
+ 		&& (os->bfd_section->size != 0
+-		    || os->bfd_section->vma != os->bfd_section->lma
+-		    || r->last_os != NULL)
++		    || (r->last_os == NULL
++			&& os->bfd_section->vma != os->bfd_section->lma)
++		    || (r->last_os != NULL
++			&& dot >= (r->last_os->output_section_statement
++				   .bfd_section->vma)))
+ 		&& os->lma_region == NULL
+ 		&& !link_info.relocatable)
+ 	      r->last_os = s;
+diff -burN orig.binutils-2.17.50-20070112/ld/Makefile.am binutils-2.17.50-20070112/ld/Makefile.am
+--- orig.binutils-2.17.50-20070112/ld/Makefile.am	2006-12-12 10:31:48.000000000 -0400
++++ binutils-2.17.50-20070112/ld/Makefile.am	2007-05-24 00:24:16.000000000 -0300
+@@ -416,8 +416,7 @@
+ ALL_EMUL_EXTRA_OFILES = \
+ 	deffilep.o \
+ 	pe-dll.o \
+-	pep-dll.o \
+-	spu_inc.o
++	pep-dll.o
+ 
+ CFILES = ldctor.c ldemul.c ldexp.c ldfile.c ldlang.c \
+ 	ldmain.c ldmisc.c ldver.c ldwrite.c lexsup.c \
+@@ -713,10 +712,9 @@
+   $(srcdir)/scripttempl/elf.sc ${GEN_DEPENDS}
+ 	${GENSCRIPTS} elf32_sparc_vxworks "$(tdir_elf32_sparc_vxworks)"
+ eelf32_spu.c: $(srcdir)/emulparams/elf32_spu.sh $(srcdir)/emultempl/spuelf.em \
++  $(srcdir)/emultempl/spu_ovl.o \
+   $(ELF_DEPS) $(srcdir)/scripttempl/elf.sc ${GEN_DEPENDS}
+ 	${GENSCRIPTS} elf32_spu "$(tdir_elf32_spu)"
+-spu_inc.o: $(srcdir)/emultempl/spu_inc.s $(srcdir)/emultempl/spu_ovl.o
+-	$(CC) -c -Wa,-I,$(srcdir)/emultempl -o $@ $<
+ $(srcdir)/emultempl/spu_ovl.o: @MAINT@ $(srcdir)/emultempl/spu_ovl.S
+ 	cpp -DOVLY_IRQ_SAVE $(srcdir)/emultempl/spu_ovl.S spu_ovl.s
+ 	if ../gas/as-new --version \
+diff -burN orig.binutils-2.17.50-20070112/ld/Makefile.in binutils-2.17.50-20070112/ld/Makefile.in
+--- orig.binutils-2.17.50-20070112/ld/Makefile.in	2006-12-12 10:31:48.000000000 -0400
++++ binutils-2.17.50-20070112/ld/Makefile.in	2007-05-24 00:24:16.000000000 -0300
+@@ -651,8 +651,7 @@
+ ALL_EMUL_EXTRA_OFILES = \
+ 	deffilep.o \
+ 	pe-dll.o \
+-	pep-dll.o \
+-	spu_inc.o
++	pep-dll.o
+ 
+ CFILES = ldctor.c ldemul.c ldexp.c ldfile.c ldlang.c \
+ 	ldmain.c ldmisc.c ldver.c ldwrite.c lexsup.c \
+@@ -1527,10 +1526,9 @@
+   $(srcdir)/scripttempl/elf.sc ${GEN_DEPENDS}
+ 	${GENSCRIPTS} elf32_sparc_vxworks "$(tdir_elf32_sparc_vxworks)"
+ eelf32_spu.c: $(srcdir)/emulparams/elf32_spu.sh $(srcdir)/emultempl/spuelf.em \
++  $(srcdir)/emultempl/spu_ovl.o \
+   $(ELF_DEPS) $(srcdir)/scripttempl/elf.sc ${GEN_DEPENDS}
+ 	${GENSCRIPTS} elf32_spu "$(tdir_elf32_spu)"
+-spu_inc.o: $(srcdir)/emultempl/spu_inc.s $(srcdir)/emultempl/spu_ovl.o
+-	$(CC) -c -Wa,-I,$(srcdir)/emultempl -o $@ $<
+ $(srcdir)/emultempl/spu_ovl.o: @MAINT@ $(srcdir)/emultempl/spu_ovl.S
+ 	cpp -DOVLY_IRQ_SAVE $(srcdir)/emultempl/spu_ovl.S spu_ovl.s
+ 	if ../gas/as-new --version \
+diff -burN orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/relbrlt.d binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/relbrlt.d
+--- orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/relbrlt.d	2006-10-24 10:29:37.000000000 -0300
++++ binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/relbrlt.d	2007-05-24 00:24:16.000000000 -0300
+@@ -7,44 +7,44 @@
+ 
+ Disassembly of section \.text:
+ 
+-0*100000a8 <_start>:
+-    100000a8:	49 bf 00 31 	bl      11bf00d8 .*
+-			100000a8: R_PPC64_REL24	\.text\+0x37e0044
+-    100000ac:	60 00 00 00 	nop
+-    100000b0:	49 bf 00 19 	bl      11bf00c8 .*
+-			100000b0: R_PPC64_REL24	\.text\+0x3bf0020
+-    100000b4:	60 00 00 00 	nop
+-    100000b8:	49 bf 00 25 	bl      11bf00dc .*
+-			100000b8: R_PPC64_REL24	\.text\+0x57e0024
+-    100000bc:	60 00 00 00 	nop
+-    100000c0:	00 00 00 00 	\.long 0x0
+-    100000c4:	4b ff ff e4 	b       100000a8 <_start>
++0*100000b0 <_start>:
++[0-9a-f	 ]*:	49 bf 00 31 	bl      .*
++[0-9a-f	 ]*: R_PPC64_REL24	\.text\+0x37e0044
++[0-9a-f	 ]*:	60 00 00 00 	nop
++[0-9a-f	 ]*:	49 bf 00 19 	bl      .*
++[0-9a-f	 ]*: R_PPC64_REL24	\.text\+0x3bf0020
++[0-9a-f	 ]*:	60 00 00 00 	nop
++[0-9a-f	 ]*:	49 bf 00 25 	bl      .*
++[0-9a-f	 ]*: R_PPC64_REL24	\.text\+0x57e0024
++[0-9a-f	 ]*:	60 00 00 00 	nop
++[0-9a-f	 ]*:	00 00 00 00 	\.long 0x0
++[0-9a-f	 ]*:	4b ff ff e4 	b       .* <_start>
+ 	\.\.\.
+ 
+-0*11bf00c8 <.*plt_branch.*>:
+-    11bf00c8:	3d 82 05 7e 	addis   r12,r2,1406
+-    11bf00cc:	e9 6c 80 58 	ld      r11,-32680\(r12\)
+-    11bf00d0:	7d 69 03 a6 	mtctr   r11
+-    11bf00d4:	4e 80 04 20 	bctr
+-
+-0*11bf00d8 <.*long_branch.*>:
+-    11bf00d8:	49 bf 00 14 	b       137e00ec <far>
+-			11bf00d8: R_PPC64_REL24	\*ABS\*\+0x137e00ec
+-
+-0*11bf00dc <.*plt_branch.*>:
+-    11bf00dc:	3d 82 05 7e 	addis   r12,r2,1406
+-    11bf00e0:	e9 6c 80 60 	ld      r11,-32672\(r12\)
+-    11bf00e4:	7d 69 03 a6 	mtctr   r11
+-    11bf00e8:	4e 80 04 20 	bctr
++[0-9a-f	 ]*<.*plt_branch.*>:
++[0-9a-f	 ]*:	3d 82 00 00 	addis   r12,r2,0
++[0-9a-f	 ]*:	e9 6c 80 00 	ld      r11,-32768\(r12\)
++[0-9a-f	 ]*:	7d 69 03 a6 	mtctr   r11
++[0-9a-f	 ]*:	4e 80 04 20 	bctr
++
++[0-9a-f	 ]*<.*long_branch.*>:
++[0-9a-f	 ]*:	49 bf 00 14 	b       .* <far>
++[0-9a-f	 ]*: R_PPC64_REL24	\*ABS\*\+0x137e00f4
++
++[0-9a-f	 ]*<.*plt_branch.*>:
++[0-9a-f	 ]*:	3d 82 00 00 	addis   r12,r2,0
++[0-9a-f	 ]*:	e9 6c 80 08 	ld      r11,-32760\(r12\)
++[0-9a-f	 ]*:	7d 69 03 a6 	mtctr   r11
++[0-9a-f	 ]*:	4e 80 04 20 	bctr
+ 	\.\.\.
+ 
+-0*137e00ec <far>:
+-    137e00ec:	4e 80 00 20 	blr
++0*137e00f4 <far>:
++[0-9a-f	 ]*:	4e 80 00 20 	blr
+ 	\.\.\.
+ 
+-0*13bf00c8 <far2far>:
+-    13bf00c8:	4e 80 00 20 	blr
++[0-9a-f	 ]*<far2far>:
++[0-9a-f	 ]*:	4e 80 00 20 	blr
+ 	\.\.\.
+ 
+-0*157e00cc <huge>:
+-    157e00cc:	4e 80 00 20 	blr
++[0-9a-f	 ]*<huge>:
++[0-9a-f	 ]*:	4e 80 00 20 	blr
+diff -burN orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsexe.r binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsexe.r
+--- orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsexe.r	2006-08-17 05:21:06.000000000 -0300
++++ binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsexe.r	2007-05-24 00:24:16.000000000 -0300
+@@ -17,10 +17,10 @@
+  +\[ 5\] \.rela\.dyn +.*
+  +\[ 6\] \.rela\.plt +.*
+  +\[ 7\] \.text +PROGBITS .* 0+100 0+ +AX +0 +0 +8
+- +\[ 8\] \.rodata + PROGBITS .* 0+ 0+ +A +0 +0 +8
+- +\[ 9\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
+- +\[10\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
+- +\[11\] \.dynamic +DYNAMIC .* 0+150 10 +WA +4 +0 +8
++ +\[ 8\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
++ +\[ 9\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
++ +\[10\] \.dynamic +DYNAMIC .* 0+150 10 +WA +4 +0 +8
++ +\[11\] \.branch_lt + PROGBITS .* 0+ 0+ +WA +0 +0 +8
+  +\[12\] \.got +PROGBITS .* 0+30 08 +WA +0 +0 +8
+  +\[13\] \.plt +.*
+  +\[14\] \.shstrtab +.*
+@@ -67,7 +67,7 @@
+ .* TLS +GLOBAL DEFAULT +UND gd
+ .* FUNC +GLOBAL DEFAULT +UND __tls_get_addr
+ .* TLS +GLOBAL DEFAULT +UND ld
+-.* TLS +GLOBAL DEFAULT +10 ld2
++.* TLS +GLOBAL DEFAULT +9 ld2
+ .* NOTYPE +GLOBAL DEFAULT +ABS __bss_start
+ .* NOTYPE +GLOBAL DEFAULT +ABS _edata
+ .* NOTYPE +GLOBAL DEFAULT +ABS _end
+@@ -88,26 +88,26 @@
+ .* SECTION LOCAL +DEFAULT +11 
+ .* SECTION LOCAL +DEFAULT +12 
+ .* SECTION LOCAL +DEFAULT +13 
+-.* TLS +LOCAL +DEFAULT +9 gd4
+-.* TLS +LOCAL +DEFAULT +9 ld4
+-.* TLS +LOCAL +DEFAULT +9 ld5
+-.* TLS +LOCAL +DEFAULT +9 ld6
+-.* TLS +LOCAL +DEFAULT +9 ie4
+-.* TLS +LOCAL +DEFAULT +9 le4
+-.* TLS +LOCAL +DEFAULT +9 le5
+-.* OBJECT +LOCAL +HIDDEN +11 _DYNAMIC
++.* TLS +LOCAL +DEFAULT +8 gd4
++.* TLS +LOCAL +DEFAULT +8 ld4
++.* TLS +LOCAL +DEFAULT +8 ld5
++.* TLS +LOCAL +DEFAULT +8 ld6
++.* TLS +LOCAL +DEFAULT +8 ie4
++.* TLS +LOCAL +DEFAULT +8 le4
++.* TLS +LOCAL +DEFAULT +8 le5
++.* OBJECT +LOCAL +HIDDEN +10 _DYNAMIC
+ .* FUNC +LOCAL +DEFAULT +UND \.__tls_get_addr
+ .* GLOBAL DEFAULT +UND gd
+-.* GLOBAL DEFAULT +10 le0
++.* GLOBAL DEFAULT +9 le0
+ .* GLOBAL DEFAULT +UND __tls_get_addr
+-.* GLOBAL DEFAULT +10 ld0
+-.* GLOBAL DEFAULT +10 le1
++.* GLOBAL DEFAULT +9 ld0
++.* GLOBAL DEFAULT +9 le1
+ .* GLOBAL DEFAULT +UND ld
+ .* NOTYPE +GLOBAL DEFAULT +7 _start
+-.* TLS +GLOBAL DEFAULT +10 ld2
+-.* TLS +GLOBAL DEFAULT +10 ld1
++.* TLS +GLOBAL DEFAULT +9 ld2
++.* TLS +GLOBAL DEFAULT +9 ld1
+ .* NOTYPE +GLOBAL DEFAULT +ABS __bss_start
+ .* NOTYPE +GLOBAL DEFAULT +ABS _edata
+ .* NOTYPE +GLOBAL DEFAULT +ABS _end
+-.* TLS +GLOBAL DEFAULT +10 gd0
+-.* TLS +GLOBAL DEFAULT +10 ie0
++.* TLS +GLOBAL DEFAULT +9 gd0
++.* TLS +GLOBAL DEFAULT +9 ie0
+diff -burN orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsexetoc.r binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsexetoc.r
+--- orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsexetoc.r	2006-08-17 05:21:06.000000000 -0300
++++ binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsexetoc.r	2007-05-24 00:24:16.000000000 -0300
+@@ -17,10 +17,10 @@
+  +\[ 5\] \.rela\.dyn +.*
+  +\[ 6\] \.rela\.plt +.*
+  +\[ 7\] \.text +PROGBITS .* 0+c0 0+ +AX +0 +0 +8
+- +\[ 8\] \.rodata +PROGBITS .* 0+ 0+ +A +0 +0 +8
+- +\[ 9\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
+- +\[10\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
+- +\[11\] \.dynamic +DYNAMIC .* 0+150 10 +WA +4 +0 +8
++ +\[ 8\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
++ +\[ 9\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
++ +\[10\] \.dynamic +DYNAMIC .* 0+150 10 +WA +4 +0 +8
++ +\[11\] \.branch_lt +PROGBITS .* 0+ 0+ +WA +0 +0 +8
+  +\[12\] \.got +PROGBITS .* 0+58 08 +WA +0 +0 +8
+  +\[13\] \.plt +.*
+  +\[14\] \.shstrtab +.*
+@@ -87,27 +87,27 @@
+ .* SECTION LOCAL +DEFAULT +11 
+ .* SECTION LOCAL +DEFAULT +12 
+ .* SECTION LOCAL +DEFAULT +13 
+-.* TLS +LOCAL +DEFAULT +9 gd4
+-.* TLS +LOCAL +DEFAULT +9 ld4
+-.* TLS +LOCAL +DEFAULT +9 ld5
+-.* TLS +LOCAL +DEFAULT +9 ld6
+-.* TLS +LOCAL +DEFAULT +9 ie4
+-.* TLS +LOCAL +DEFAULT +9 le4
+-.* TLS +LOCAL +DEFAULT +9 le5
++.* TLS +LOCAL +DEFAULT +8 gd4
++.* TLS +LOCAL +DEFAULT +8 ld4
++.* TLS +LOCAL +DEFAULT +8 ld5
++.* TLS +LOCAL +DEFAULT +8 ld6
++.* TLS +LOCAL +DEFAULT +8 ie4
++.* TLS +LOCAL +DEFAULT +8 le4
++.* TLS +LOCAL +DEFAULT +8 le5
+ .* NOTYPE +LOCAL +DEFAULT +12 \.Lie0
+-.* OBJECT +LOCAL +HIDDEN +11 _DYNAMIC
++.* OBJECT +LOCAL +HIDDEN +10 _DYNAMIC
+ .* FUNC +LOCAL +DEFAULT +UND \.__tls_get_addr
+ .* TLS +GLOBAL DEFAULT +UND gd
+-.* TLS +GLOBAL DEFAULT +10 le0
++.* TLS +GLOBAL DEFAULT +9 le0
+ .* FUNC +GLOBAL DEFAULT +UND __tls_get_addr
+-.* TLS +GLOBAL DEFAULT +10 ld0
+-.* TLS +GLOBAL DEFAULT +10 le1
++.* TLS +GLOBAL DEFAULT +9 ld0
++.* TLS +GLOBAL DEFAULT +9 le1
+ .* TLS +GLOBAL DEFAULT +UND ld
+ .* NOTYPE +GLOBAL DEFAULT +7 _start
+-.* TLS +GLOBAL DEFAULT +10 ld2
+-.* TLS +GLOBAL DEFAULT +10 ld1
++.* TLS +GLOBAL DEFAULT +9 ld2
++.* TLS +GLOBAL DEFAULT +9 ld1
+ .* NOTYPE +GLOBAL DEFAULT +ABS __bss_start
+ .* NOTYPE +GLOBAL DEFAULT +ABS _edata
+ .* NOTYPE +GLOBAL DEFAULT +ABS _end
+-.* TLS +GLOBAL DEFAULT +10 gd0
+-.* TLS +GLOBAL DEFAULT +10 ie0
++.* TLS +GLOBAL DEFAULT +9 gd0
++.* TLS +GLOBAL DEFAULT +9 ie0
+diff -burN orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsso.r binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsso.r
+--- orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsso.r	2006-10-17 10:41:48.000000000 -0300
++++ binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlsso.r	2007-05-24 00:24:16.000000000 -0300
+@@ -17,8 +17,8 @@
+  +\[ 6\] \.text .*
+  +\[ 7\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
+  +\[ 8\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
+- +\[ 9\] \.data\.rel\.ro .*
+- +\[10\] \.dynamic .*
++ +\[ 9\] \.dynamic .*
++ +\[10\] \.branch_lt .*
+  +\[11\] \.got .*
+  +\[12\] \.plt .*
+  +\[13\] \.shstrtab .*
+diff -burN orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlstocso.r binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlstocso.r
+--- orig.binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlstocso.r	2006-10-17 10:41:48.000000000 -0300
++++ binutils-2.17.50-20070112/ld/testsuite/ld-powerpc/tlstocso.r	2007-05-24 00:24:16.000000000 -0300
+@@ -17,8 +17,8 @@
+  +\[ 6\] \.text .*
+  +\[ 7\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
+  +\[ 8\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
+- +\[ 9\] \.data\.rel\.ro .*
+- +\[10\] \.dynamic .*
++ +\[ 9\] \.dynamic .*
++ +\[10\] \.branch_lt .*
+  +\[11\] \.got .*
+  +\[12\] \.plt .*
+  +\[13\] \.shstrtab .*
+diff -burN orig.binutils-2.17.50-20070112/opcodes/ppc-dis.c binutils-2.17.50-20070112/opcodes/ppc-dis.c
+--- orig.binutils-2.17.50-20070112/opcodes/ppc-dis.c	2006-10-23 22:27:28.000000000 -0300
++++ binutils-2.17.50-20070112/opcodes/ppc-dis.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1,5 +1,5 @@
+ /* ppc-dis.c -- Disassemble PowerPC instructions
+-   Copyright 1994, 1995, 2000, 2001, 2002, 2003, 2004, 2005, 2006
++   Copyright 1994, 1995, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
+    Free Software Foundation, Inc.
+    Written by Ian Lance Taylor, Cygnus Support
+ 
+@@ -61,6 +61,10 @@
+   else if (info->disassembler_options
+ 	   && strstr (info->disassembler_options, "e300") != NULL)
+     dialect |= PPC_OPCODE_E300 | PPC_OPCODE_CLASSIC | PPC_OPCODE_COMMON;
++  else if (info->disassembler_options
++	   && strstr (info->disassembler_options, "440") != NULL)
++    dialect |= PPC_OPCODE_BOOKE | PPC_OPCODE_32
++      | PPC_OPCODE_440 | PPC_OPCODE_ISEL | PPC_OPCODE_RFMCI;
+   else
+     dialect |= (PPC_OPCODE_403 | PPC_OPCODE_601 | PPC_OPCODE_CLASSIC
+ 		| PPC_OPCODE_COMMON | PPC_OPCODE_ALTIVEC);
+@@ -311,6 +315,7 @@
+   fprintf (stream, "  booke|booke32|booke64    Disassemble the BookE instructions\n");
+   fprintf (stream, "  e300                     Disassemble the e300 instructions\n");
+   fprintf (stream, "  e500|e500x2              Disassemble the e500 instructions\n");
++  fprintf (stream, "  440                      Disassemble the 440 instructions\n");
+   fprintf (stream, "  efs                      Disassemble the EFS instructions\n");
+   fprintf (stream, "  power4                   Disassemble the Power4 instructions\n");
+   fprintf (stream, "  power5                   Disassemble the Power5 instructions\n");
+diff -burN orig.binutils-2.17.50-20070112/opcodes/ppc-opc.c binutils-2.17.50-20070112/opcodes/ppc-opc.c
+--- orig.binutils-2.17.50-20070112/opcodes/ppc-opc.c	2006-11-05 20:46:07.000000000 -0400
++++ binutils-2.17.50-20070112/opcodes/ppc-opc.c	2007-05-24 00:24:16.000000000 -0300
+@@ -1,6 +1,6 @@
+ /* ppc-opc.c -- PowerPC opcode list
+    Copyright 1994, 1995, 1996, 1997, 1998, 2000, 2001, 2002, 2003, 2004,
+-   2005 Free Software Foundation, Inc.
++   2005, 2006, 2007 Free Software Foundation, Inc.
+    Written by Ian Lance Taylor, Cygnus Support
+ 
+    This file is part of GDB, GAS, and the GNU binutils.
+@@ -683,7 +683,11 @@
+    the "y" bit.  "at" == 00 => no hint, "at" == 01 => unpredictable,
+    "at" == 10 => not taken, "at" == 11 => taken.  The "t" bit is 00001
+    in BO field, the "a" bit is 00010 for branch on CR(BI) and 01000
+-   for branch on CTR.  We only handle the taken/not-taken hint here.  */
++   for branch on CTR.  We only handle the taken/not-taken hint here.
++   Note that we don't relax the conditions tested here when
++   disassembling with -Many because insns using extract_bdm and
++   extract_bdp always occur in pairs.  One or the other will always
++   be valid.  */
+ 
+ static unsigned long
+ insert_bdm (unsigned long insn,
+@@ -774,10 +778,11 @@
+ /* Check for legal values of a BO field.  */
+ 
+ static int
+-valid_bo (long value, int dialect)
++valid_bo (long value, int dialect, int extract)
+ {
+   if ((dialect & PPC_OPCODE_POWER4) == 0)
+     {
++      int valid;
+       /* Certain encodings have bits that are required to be zero.
+ 	 These are (z must be zero, y may be anything):
+ 	     001zy
+@@ -790,17 +795,25 @@
+ 	{
+ 	default:
+ 	case 0:
+-	  return 1;
++	  valid = 1;
++	  break;
+ 	case 0x4:
+-	  return (value & 0x2) == 0;
++	  valid = (value & 0x2) == 0;
++	  break;
+ 	case 0x10:
+-	  return (value & 0x8) == 0;
++	  valid = (value & 0x8) == 0;
++	  break;
+ 	case 0x14:
+-	  return value == 0x14;
++	  valid = value == 0x14;
++	  break;
+ 	}
++      /* When disassembling with -Many, accept power4 encodings too.  */
++      if (valid
++	  || (dialect & PPC_OPCODE_ANY) == 0
++	  || !extract)
++	return valid;
+     }
+-  else
+-    {
++
+       /* Certain encodings have bits that are required to be zero.
+ 	 These are (z must be zero, a & t may be anything):
+ 	     0000z
+@@ -819,7 +832,6 @@
+ 	return value == 0x14;
+       else
+ 	return 1;
+-    }
+ }
+ 
+ /* The BO field in a B form instruction.  Warn about attempts to set
+@@ -831,7 +843,7 @@
+ 	   int dialect,
+ 	   const char **errmsg)
+ {
+-  if (!valid_bo (value, dialect))
++  if (!valid_bo (value, dialect, 0))
+     *errmsg = _("invalid conditional option");
+   return insn | ((value & 0x1f) << 21);
+ }
+@@ -844,7 +856,7 @@
+   long value;
+ 
+   value = (insn >> 21) & 0x1f;
+-  if (!valid_bo (value, dialect))
++  if (!valid_bo (value, dialect, 1))
+     *invalid = 1;
+   return value;
+ }
+@@ -859,7 +871,7 @@
+ 	    int dialect,
+ 	    const char **errmsg)
+ {
+-  if (!valid_bo (value, dialect))
++  if (!valid_bo (value, dialect, 0))
+     *errmsg = _("invalid conditional option");
+   else if ((value & 1) != 0)
+     *errmsg = _("attempt to set y bit when using + or - modifier");
+@@ -875,7 +887,7 @@
+   long value;
+ 
+   value = (insn >> 21) & 0x1f;
+-  if (!valid_bo (value, dialect))
++  if (!valid_bo (value, dialect, 1))
+     *invalid = 1;
+   return value & 0x1e;
+ }
