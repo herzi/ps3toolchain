@@ -2,9 +2,7 @@
 # binutils-2.16.1.sh by Dan Peori (danpeori@oopo.net)
 
  ## Download the source code.
- if test ! -f "binutils-2.16.1.tar.bz2"; then
-  wget --continue http://www.bsc.es/projects/deepcomputing/linuxoncell/cellsimulator/sdk2.1/sources/toolchain/binutils-2.17.50-20070112.tar.bz2 || { exit 1; }
- fi
+ wget --continue http://www.bsc.es/projects/deepcomputing/linuxoncell/cellsimulator/sdk2.1/sources/toolchain/binutils-2.17.50-20070112.tar.bz2 || { exit 1; }
 
  ## Unpack the source code.
  rm -Rf src && tar xfvj binutils-2.17.50-20070112.tar.bz2 || { exit 1; }
