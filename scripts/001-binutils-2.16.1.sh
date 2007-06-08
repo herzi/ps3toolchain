@@ -1,14 +1,14 @@
 #!/bin/sh
-# binutils-2.16.1.sh by Dan Peori (danpeori@oopo.net)
+# binutils-2.17.sh by Dan Peori (danpeori@oopo.net)
 
  ## Download the source code.
- wget --continue http://www.bsc.es/projects/deepcomputing/linuxoncell/cellsimulator/sdk2.1/sources/toolchain/binutils-2.17.50-20070112.tar.bz2 || { exit 1; }
+ wget --continue ftp://ftp.gnu.org/pub/gnu/binutils/binutils-2.17.tar.bz2 || { exit 1; }
 
  ## Unpack the source code.
- rm -Rf src && tar xfvj binutils-2.17.50-20070112.tar.bz2 || { exit 1; }
+ rm -Rf binutils-2.17 && tar xfvj binutils-2.17.tar.bz2 || { exit 1; }
 
  ## Enter the source directory and patch the source code.
- cd src && cat ../../patches/binutils-2.17.50-20070112-PS3.patch | patch -p1 || { exit 1; }
+ cd binutils-2.17 && cat ../../patches/binutils-2.17-PS3.patch | patch -p1 || { exit 1; }
 
  ## For each target...
  for TARGET in "ppu" "spu"; do
@@ -17,7 +17,7 @@
   mkdir build-$TARGET && cd build-$TARGET || { exit 1; }
 
   ## Configure the build.
-  ../configure --prefix="$PS3DEV/$TARGET" --target="$TARGET" --enable-install-libbfd || { exit 1; }
+  ../configure --prefix="$PS3DEV/$TARGET" --target="$TARGET" --disable-shared --disable-nls --disable-werror || { exit 1; }
 
   ## Compile and install.
   make clean && make -j 2 && make install && make clean || { exit 1; }
