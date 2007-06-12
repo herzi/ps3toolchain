@@ -8,13 +8,13 @@
  rm -Rf gcc-4.1.1 && tar xfvj gcc-4.1.1.tar.bz2 || { exit 1; }
 
  ## Enter the source directory and patch the source code.
- cd gcc-4.1.1 && cat ../../patches/gcc-4.1.1-PPU.patch | patch -p1 || { exit 1; }
+ cd gcc-4.1.1 && cat ../../patches/gcc-4.1.1-SPU.patch | patch -p1 || { exit 1; }
 
  ## Create and enter the build directory.
  mkdir build-spu && cd build-spu || { exit 1; }
 
  ## Configure the build.
- ../configure --prefix="$PS3DEV/spu" --target="spu" --enable-languages="c" --with-newlib --without-headers --disable-libssp || { exit 1; }
+ ../configure --prefix="$PS3DEV/spu" --target="spu" --enable-languages="c" --with-newlib --disable-libssp --disable-checking || { exit 1; }
 
  ## Compile and install.
  make clean && make -j 2 && make install && make clean || { exit 1; }
