@@ -1,6 +1,6 @@
 #!/bin/sh
-# gcc-4.3-stage1.sh by Dan Peori (danpeori@oopo.net)
-
+# gcc-4.3-20070608-stage1.sh by Dan Peori (danpeori@oopo.net)
+exit;
  ## Download the source code.
  wget --continue ftp://sourceware.org/pub/gcc/snapshots/LATEST-4.3/gcc-4.3-20070608.tar.bz2 || { exit 1; }
 
