@@ -1,0 +1,14 @@
+diff -burN orig.gcc-4.2.0/config.sub gcc-4.2.0/config.sub
+--- orig.gcc-4.2.0/config.sub	2006-10-16 00:27:17.000000000 -0300
++++ gcc-4.2.0/config.sub	2007-06-13 23:30:33.000000000 -0300
+@@ -873,6 +873,10 @@
+ 	ppc64le-* | powerpc64little-*)
+ 		basic_machine=powerpc64le-`echo $basic_machine | sed 's/^[^-]*-//'`
+ 		;;
++	ppu)
++		basic_machine=powerpc64-unknown
++		os=-linux-gnu
++		;;
+ 	ps2)
+ 		basic_machine=i386-ibm
+ 		;;

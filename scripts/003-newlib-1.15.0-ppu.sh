@@ -1,6 +1,6 @@
 #!/bin/sh
 # newlib-1.15.0-spu.sh by Dan Peori (danpeori@oopo.net)
-exit;
+
  ## Download the source code.
  wget --continue ftp://sources.redhat.com/pub/newlib/newlib-1.15.0.tar.gz || { exit 1; }
 
