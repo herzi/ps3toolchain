@@ -14,7 +14,7 @@
  mkdir build-ppu-stage2 && cd build-ppu-stage2 || { exit 1; }
 
  ## Configure the build.
- ../configure --prefix=$PS3DEV/ppu --target=ppu --enable-languages=c,c++ --with-newlib --enable-cxx-flags="-G0" --disable-libgomp --disable-libmudflap --disable-shared --disable-threads
+ ../configure --prefix=$PS3DEV/ppu --target=ppu --enable-languages=c,c++ --with-newlib --enable-cxx-flags="-G0" --disable-libgomp --disable-libmudflap --disable-nls --disable-shared --disable-threads || { exit 1; }
 
  ## Compile and install.
  make clean && make -j 2 && make install && make clean || { exit 1; }

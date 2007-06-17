@@ -14,7 +14,7 @@
  mkdir build-spu && cd build-spu || { exit 1; }
 
  ## Configure the build.
- ../configure --prefix="$PS3DEV/spu" --target="spu" || { exit 1; }
+ ../configure --prefix="$PS3DEV/spu" --target="spu" --disable-nls || { exit 1; }
 
  ## Compile and install.
- make clean && make -j 2 && make install && make clean || { exit 1; }
+ make clean && make && make install && make clean || { exit 1; }
