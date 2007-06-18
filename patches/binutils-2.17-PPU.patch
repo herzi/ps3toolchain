@@ -1,13 +1,13 @@
-diff -burN orig.newlib-1.15.0/config.sub newlib-1.15.0/config.sub
---- orig.newlib-1.15.0/config.sub	2006-12-11 00:12:46.000000000 -0400
-+++ newlib-1.15.0/config.sub	2007-06-17 00:21:49.000000000 -0300
+diff -burN orig.binutils-2.17/config.sub binutils-2.17/config.sub
+--- orig.binutils-2.17/config.sub	2006-01-16 13:34:37.000000000 -0400
++++ binutils-2.17/config.sub	2007-06-17 21:15:17.000000000 -0300
 @@ -873,6 +873,10 @@
  	ppc64le-* | powerpc64little-*)
  		basic_machine=powerpc64le-`echo $basic_machine | sed 's/^[^-]*-//'`
  		;;
 +	ppu)
 +		basic_machine=powerpc64-unknown
-+		os=-none
++		os=-linux-gnu
 +		;;
  	ps2)
  		basic_machine=i386-ibm

@@ -1,14 +1,14 @@
 #!/bin/sh
-# binutils-2.17.50-ppu.sh by Dan Peori (danpeori@oopo.net)
+# binutils-2.17-ppu.sh by Dan Peori (danpeori@oopo.net)
 
  ## Download the source code.
- wget --continue ftp://sourceware.org/pub/binutils/snapshots/binutils-2.17.50.tar.bz2 || { exit 1; }
+ wget --continue ftp://ftp.gnu.org/pub/gnu/binutils/binutils-2.17.tar.bz2 || { exit 1; }
 
  ## Unpack the source code.
- rm -Rf binutils-2.17.50 && tar xfvj binutils-2.17.50.tar.bz2 || { exit 1; }
+ rm -Rf binutils-2.17 && tar xfvj binutils-2.17.tar.bz2 || { exit 1; }
 
  ## Enter the source directory and patch the source code.
- cd binutils-2.17.50 && cat ../../patches/binutils-2.17.50-PPU.patch | patch -p1 || { exit 1; }
+ cd binutils-2.17 && cat ../../patches/binutils-2.17-PPU.patch | patch -p1 || { exit 1; }
 
  ## Create and enter the build directory.
  mkdir build-ppu && cd build-ppu || { exit 1; }
