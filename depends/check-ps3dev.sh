@@ -5,7 +5,7 @@
  if test ! $PS3DEV; then { echo "ERROR: Set \$PS3DEV before continuing."; exit 1; } fi
 
  ## Check for the $PS3DEV directory.
- ls -ld $PS3DEV 1> /dev/null || mkdir -p $PS3DEV 1> /dev/null || { echo "ERROR: Create $PS3DEV before continuing."; exit 1; }
+ ( ls -ld $PS3DEV || mkdir -p $PS3DEV ) 1> /dev/null 2> /dev/null || { echo "ERROR: Create $PS3DEV before continuing."; exit 1; }
 
  ## Check for write permission.
  touch $PS3DEV/test.tmp 1> /dev/null || { echo "ERROR: Grant write permissions for $PS3DEV before continuing."; exit 1; }
